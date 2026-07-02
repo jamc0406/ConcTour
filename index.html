@@ -1,0 +1,2130 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ConcTour｜作業場所濃度分佈圖繪製工具 | Workplace Concentration Contour Tool</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js"></script>
+<style>
+  html, body { height: 100%; }
+  .cell-input {
+    width: 100%; padding: 4px 6px; font-size: 13px; border-radius: 6px;
+    border: 1px solid #e2e8f0; background: #fff; outline: none;
+  }
+  .cell-input:focus { border-color: #0369a1; box-shadow: 0 0 0 2px rgba(3,105,161,.15); }
+  .cell-input.invalid { border-color: #f87171; background: #fef2f2; }
+  tr.row-excluded .cell-input { background: #fffbeb; opacity: .7; }
+  tr.row-excluded { background: #fffbeb; }
+  tr.row-high { background: #fff7ed; }
+  .side-label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 4px; }
+  .side-input {
+    width: 100%; padding: 6px 8px; font-size: 13px; border-radius: 8px;
+    border: 1px solid #e2e8f0; background: #fff; outline: none;
+  }
+  .side-input:focus { border-color: #0369a1; box-shadow: 0 0 0 2px rgba(3,105,161,.15); }
+  .side-input.invalid { border-color: #f87171; background: #fef2f2; }
+  .btn-secondary {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 6px 10px; font-size: 12.5px; font-weight: 600; border-radius: 8px;
+    border: 1px solid #e2e8f0; background: #fff; color: #334155; cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .btn-secondary:hover { background: #f1f5f9; border-color: #cbd5e1; }
+  .btn-secondary:disabled { opacity: .45; cursor: not-allowed; }
+  input[type="range"] { accent-color: #0369a1; }
+  .note-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+    font-size: 11.5px; border-radius: 9999px; border: 1px solid;
+  }
+  .section-title {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+    font-size: 15px; font-weight: 800; letter-spacing: .02em; color: #075985;
+  }
+  .stat-cell { border: 1px solid #e2e8f0; background: #f8fafc; border-radius: 8px; padding: 5px 4px; text-align: center; }
+  .stat-cell .k { font-size: 10px; color: #94a3b8; white-space: nowrap; }
+  .stat-cell .v { font-size: 13px; font-weight: 700; color: #334155; }
+  .swatch {
+    height: 28px; flex: 1 1 0%; border-radius: 8px; cursor: pointer;
+    border: 2px solid #e2e8f0; transition: transform .1s, border-color .1s;
+  }
+  .swatch:hover { transform: scale(1.04); }
+  .swatch.selected { border-color: #0369a1; box-shadow: 0 0 0 2px rgba(3,105,161,.25); }
+  /* Floor-plan on-plot editor */
+  #fp-editor { touch-action: none; }
+  .fp-handle {
+    position: absolute; width: 14px; height: 14px; background: #fff;
+    border: 2px solid #0369a1; border-radius: 4px;
+  }
+  .fp-handle[data-dir="nw"] { left: -7px; top: -7px; cursor: nwse-resize; }
+  .fp-handle[data-dir="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
+  .fp-handle[data-dir="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
+  .fp-handle[data-dir="se"] { right: -7px; bottom: -7px; cursor: nwse-resize; }
+  /* Desktop: fixed-position sidebar, width-resizable via the right-edge grip only */
+  @media (min-width: 768px) {
+    #app-root { display: flex; }
+    #sidebar {
+      position: relative; width: 344px; min-width: 288px; max-width: 680px;
+      flex: none; display: flex; flex-direction: column;
+      border-right: 1px solid #e2e8f0;
+    }
+    #resize-handle {
+      position: absolute; top: 0; right: -4px; width: 9px; height: 100%;
+      cursor: col-resize; z-index: 25;
+    }
+    #resize-handle::after {
+      content: ''; position: absolute; left: 4px; top: 0; width: 2px; height: 100%;
+      background: transparent; transition: background .15s;
+    }
+    #resize-handle:hover::after, #resize-handle.active::after { background: #0369a1; }
+  }
+  /* Mobile bottom sheet */
+  @media (max-width: 767px) {
+    #app-root { display: block; height: auto !important; }
+    #main-area { height: auto; }
+    #plot-wrap { height: 56vh !important; flex: none !important; }
+    body { padding-bottom: 60px; }
+    #panel-header, #resize-handle { display: none !important; }
+    #sidebar {
+      position: fixed; left: 0 !important; right: 0; bottom: 0; top: auto !important;
+      width: 100% !important; height: auto !important;
+      max-height: 78vh; z-index: 40; display: flex; flex-direction: column;
+      border-radius: 16px 16px 0 0; border-right: none;
+      box-shadow: 0 -8px 28px rgba(15, 23, 42, .22);
+      transform: translateY(calc(100% - 50px));
+      transition: transform .28s ease;
+    }
+    #sidebar.open { transform: translateY(0); }
+  }
+</style>
+</head>
+<body class="bg-slate-100 text-slate-800">
+
+<!-- ============ Loading overlay ============ -->
+<div id="loading-overlay" class="fixed inset-0 z-[60] flex items-center justify-center bg-slate-50 transition-opacity duration-500">
+  <div class="w-[min(92vw,440px)] px-6 text-center">
+    <img src="logo.png" alt="ConcTour" class="mx-auto mb-3 h-16 w-16 object-contain" onerror="this.onerror=null;this.src='logo.svg'">
+    <h1 class="text-2xl font-extrabold tracking-tight"><span style="color:#15499c">Conc</span><span style="color:#16b6cf">Tour</span></h1>
+    <p class="mt-1 text-[13px] font-semibold text-slate-600">作業場所濃度分佈圖繪製工具</p>
+    <p class="mb-6 text-xs text-slate-500">Workplace Concentration Contour Tool</p>
+    <div class="h-2.5 overflow-hidden rounded-full bg-slate-200">
+      <div id="load-bar" class="h-full rounded-full bg-sky-700 transition-all duration-300" style="width:2%"></div>
+    </div>
+    <div class="mt-2 flex items-start justify-between gap-3 text-xs text-slate-500">
+      <span id="load-msg" class="text-left">正在載入運算環境... / Loading scientific computing runtime...</span>
+      <span id="load-pct" class="font-mono shrink-0">2%</span>
+    </div>
+    <p class="mt-5 text-[11px] leading-relaxed text-slate-400">首次載入約需 15–30 秒（之後由瀏覽器快取加速）<br>First load takes ~15–30s (cached afterwards)</p>
+    <div id="load-error" class="mt-4 hidden rounded-lg border border-red-200 bg-red-50 p-3 text-left text-sm text-red-700">
+      <p id="load-error-msg" class="mb-2 font-medium"></p>
+      <div class="flex gap-2">
+        <button type="button" id="btn-retry" class="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700">重新載入 / Retry</button>
+        <button type="button" id="btn-continue" class="rounded-lg border border-red-300 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100">仍要進入 / Continue anyway</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Top bar ============ -->
+<header class="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white px-4">
+  <img src="logo.png" alt="ConcTour" class="h-9 w-9 shrink-0 object-contain" onerror="this.onerror=null;this.src='logo.svg'">
+  <div class="min-w-0 leading-tight">
+    <div class="text-[17px] font-extrabold tracking-tight"><span style="color:#15499c">Conc</span><span style="color:#16b6cf">Tour</span></div>
+    <div class="truncate text-[11px] text-slate-500" data-i18n="brand_subtitle">作業場所濃度分佈圖繪製工具</div>
+  </div>
+  <div class="ml-auto flex items-center gap-1.5 sm:gap-3">
+    <a id="nav-guide" href="guide.html" target="_blank" rel="noopener" class="whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-sky-800" data-i18n="nav_guide">使用說明</a>
+    <button type="button" id="nav-about" class="whitespace-nowrap rounded-lg px-2 py-1.5 text-[12.5px] font-semibold text-slate-600 hover:bg-slate-100 hover:text-sky-800" data-i18n="nav_about">關於我們</button>
+    <div class="hidden items-center gap-1.5 sm:flex" id="py-status-wrap">
+      <span id="py-status" class="h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400"></span>
+      <span id="py-status-text" class="hidden text-[11px] text-slate-500 lg:inline" data-i18n="status_loading">運算環境載入中…</span>
+    </div>
+    <button type="button" id="lang-toggle" class="btn-secondary !px-3" title="切換語言 / Switch language">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+      <span id="lang-toggle-label">EN</span>
+    </button>
+  </div>
+</header>
+
+<!-- ============ App layout ============ -->
+<div id="app-root" class="flex" style="height: calc(100vh - 56px);">
+
+  <!-- ============ Input panel ============ -->
+  <aside id="sidebar" class="bg-white">
+    <button type="button" id="sheet-handle" class="flex h-[50px] w-full items-center justify-center gap-2 text-sm font-semibold text-slate-600 md:hidden">
+      <span class="h-1 w-10 rounded-full bg-slate-300"></span>
+      <span data-i18n="sheet_title">資料與設定</span>
+      <svg id="sheet-chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 15 6-6 6 6"/></svg>
+    </button>
+    <div id="panel-header" class="hidden select-none items-center gap-2 border-b border-slate-100 px-4 py-2.5 md:flex">
+      <span class="text-[13px] font-bold text-slate-700" data-i18n="sheet_title">資料與設定</span>
+      <span class="ml-auto flex items-center gap-1 text-[10px] text-slate-300">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 7 4 12l4 5M16 7l4 5-4 5"/></svg>
+        <span data-i18n="panel_resize_hint">拖曳右側邊緣可調整寬度</span>
+      </span>
+    </div>
+    <div id="sidebar-scroll" class="h-full flex-1 overflow-y-auto px-4 pb-4 md:pt-3">
+
+      <!-- ---- Field size ---- -->
+      <section class="pt-2 md:pt-0">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h3M3 15h3M21 9h-3M21 15h-3M9 5v3M15 5v3M9 19v-3M15 19v-3"/></svg>
+          <span data-i18n="sec_field">場域尺寸</span>
+        </h2>
+        <div class="grid grid-cols-2 gap-2.5">
+          <div>
+            <label class="side-label" for="field-w" data-i18n="lbl_field_w">寬度 X (m)</label>
+            <input type="number" id="field-w" class="side-input" min="0" step="any" value="20">
+          </div>
+          <div>
+            <label class="side-label" for="field-h" data-i18n="lbl_field_h">高度 Y (m)</label>
+            <input type="number" id="field-h" class="side-input" min="0" step="any" value="15">
+          </div>
+        </div>
+        <p class="mt-1.5 text-[11px] leading-snug text-slate-400" data-i18n="field_hint">分佈圖固定以此尺寸與長寬比例繪製；座標原點 (0,0) 在左下角。</p>
+        <p id="field-warn" class="mt-1.5 hidden rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-700">
+          ⚠ <span data-i18n="field_warn">請輸入有效的場域尺寸（寬、高需大於 0）</span>
+        </p>
+      </section>
+
+      <!-- ---- Data input ---- -->
+      <section class="mt-5 border-t border-slate-100 pt-4">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0H5a2 2 0 0 1-2-2V9m6 12h10a2 2 0 0 0 2-2V9m0 0H3"/></svg>
+          <span data-i18n="sec_data">資料輸入</span>
+        </h2>
+        <div class="mb-2 flex flex-wrap gap-1.5">
+          <button type="button" id="btn-sample" class="btn-secondary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="btn_sample">載入範例資料</span>
+          </button>
+          <button type="button" id="btn-upload-csv" class="btn-secondary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21V9m0 0-4 4m4-4 4 4"/><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg>
+            <span data-i18n="btn_upload_csv">上傳 CSV</span>
+          </button>
+          <input type="file" id="csv-file" accept=".csv,text/csv" class="hidden">
+        </div>
+        <div class="max-h-60 overflow-y-auto rounded-lg border border-slate-200">
+          <table class="w-full border-collapse text-sm">
+            <thead class="sticky top-0 z-[1] bg-slate-50 text-[11px] text-slate-500">
+              <tr>
+                <th class="px-1.5 py-1.5 text-left font-semibold" data-i18n="th_x">X座標(m)</th>
+                <th class="px-1.5 py-1.5 text-left font-semibold" data-i18n="th_y">Y座標(m)</th>
+                <th class="px-1.5 py-1.5 text-left font-semibold" data-i18n="th_c">濃度值</th>
+                <th class="w-16"></th>
+              </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+        <button type="button" id="btn-add-row" class="btn-secondary mt-2 w-full" data-i18n="btn_add_row">＋ 新增列</button>
+        <div class="mt-2 flex items-center justify-between text-[11.5px] text-slate-500">
+          <span><span data-i18n="status_points">有效測點</span>: <b id="pt-count" class="text-slate-700">0</b></span>
+          <span><span data-i18n="status_bbox">資料範圍</span>: <b id="bbox-dims" class="text-slate-700">–</b></span>
+        </div>
+        <p id="qaqc-summary" class="mt-1.5 hidden rounded-lg border px-2.5 py-1.5 text-[11.5px] leading-snug"></p>
+        <p id="warn-few" class="mt-1.5 hidden rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-[11.5px] text-amber-700">
+          ⚠ <span data-i18n="warn_few">至少需要 4 個有效測點才能進行插值</span>
+        </p>
+      </section>
+
+      <!-- ---- Interpolation settings ---- -->
+      <section class="mt-5 border-t border-slate-100 pt-4">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 21v-7m0-4V3m8 18v-9m0-4V3m8 18v-5m0-4V3M1 14h6m2-6h6m2 8h6"/></svg>
+          <span data-i18n="sec_settings">參數設定</span>
+        </h2>
+        <div class="space-y-3.5">
+          <div>
+            <label class="side-label" for="method-select">
+              <span data-i18n="lbl_method">插值方法</span>
+              <span id="method-tip" class="ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-500" title="">?</span>
+            </label>
+            <select id="method-select" class="side-input"></select>
+            <p id="method-help" class="mt-1.5 text-[11px] leading-snug text-slate-500"></p>
+          </div>
+          <div id="power-row">
+            <label class="side-label" for="power-slider"><span data-i18n="lbl_power">IDW 冪次 p</span>: <span id="power-val" class="font-mono text-sky-800">2.0</span></label>
+            <input type="range" id="power-slider" min="1" max="4" step="0.1" value="2" class="w-full">
+            <div class="flex justify-between text-[10px] text-slate-400"><span>1.0</span><span>4.0</span></div>
+          </div>
+          <div>
+            <label class="side-label" for="grid-slider"><span data-i18n="lbl_grid">網格解析度</span>: <span id="grid-val" class="font-mono text-sky-800">100</span> × <span id="grid-val2" class="font-mono text-sky-800">100</span></label>
+            <input type="range" id="grid-slider" min="50" max="200" step="50" value="100" class="w-full">
+            <div class="flex justify-between text-[10px] text-slate-400"><span>50</span><span>100</span><span>150</span><span>200</span></div>
+          </div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="side-label" for="unit-input" data-i18n="lbl_unit">濃度單位</label>
+              <input type="text" id="unit-input" class="side-input" value="ppm" placeholder="ppm">
+            </div>
+            <div>
+              <label class="side-label" for="oel-input"><span data-i18n="lbl_oel">OEL 閾值（選填）</span></label>
+              <input type="number" id="oel-input" class="side-input" min="0" step="any" placeholder="例：100" data-i18n-ph="ph_oel">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- Chart settings ---- -->
+      <section class="mt-5 border-t border-slate-100 pt-4">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="13.5" cy="6.5" r="2.5"/><path d="M17 3a9.5 9.5 0 0 1 4 7.5c0 2-1.5 3.5-3.5 3.5H15a2 2 0 0 0-2 2c0 .5.2 1 .5 1.4.3.4.5.9.5 1.4 0 1.2-1 2.2-2.2 2.2A9.5 9.5 0 1 1 17 3Z"/><circle cx="7" cy="9" r="1.2" fill="currentColor" stroke="none"/><circle cx="7.5" cy="14.5" r="1.2" fill="currentColor" stroke="none"/></svg>
+          <span data-i18n="sec_chart">圖表設定</span>
+        </h2>
+        <div class="space-y-3.5">
+          <div>
+            <label class="side-label" for="title-input" data-i18n="lbl_title">圖表標題</label>
+            <input type="text" id="title-input" class="side-input" value="作業場所濃度分佈圖">
+          </div>
+          <div>
+            <label class="side-label"><span data-i18n="lbl_colorscale">色階</span>: <span id="colorscale-name" class="font-mono text-sky-800">Viridis</span></label>
+            <div id="colorscale-swatches" class="flex gap-1.5"></div>
+          </div>
+          <div>
+            <label class="side-label" for="contour-opacity"><span data-i18n="lbl_contour_opacity">分佈圖不透明度</span>: <span id="contour-opacity-val" class="font-mono text-sky-800">100%</span></label>
+            <input type="range" id="contour-opacity" min="20" max="100" step="5" value="100" class="w-full">
+            <p class="mt-0.5 text-[10.5px] leading-snug text-slate-400" data-i18n="contour_opacity_hint">疊加平面圖時可調低此值，使底圖更清楚。</p>
+          </div>
+          <div class="grid grid-cols-3 gap-2.5">
+            <div>
+              <label class="side-label" for="font-color" data-i18n="lbl_font_color">標註字色</label>
+              <input type="color" id="font-color" value="#0f172a" class="h-[34px] w-full cursor-pointer rounded-lg border border-slate-200 bg-white p-1">
+            </div>
+            <div>
+              <label class="side-label" for="font-size"><span data-i18n="lbl_font_size">字級</span> <span id="font-size-val" class="font-mono text-sky-800">10</span></label>
+              <input type="range" id="font-size" min="6" max="20" step="1" value="10" class="mt-2.5 w-full">
+            </div>
+            <div>
+              <label class="side-label" for="marker-size"><span data-i18n="lbl_marker_size">點大小</span> <span id="marker-size-val" class="font-mono text-sky-800">7</span></label>
+              <input type="range" id="marker-size" min="3" max="16" step="1" value="7" class="mt-2.5 w-full">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---- Floor plan ---- -->
+      <section class="mt-5 border-t border-slate-100 pt-4">
+        <h2 class="section-title">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 12h7V3M14 21v-6h7"/></svg>
+          <span data-i18n="sec_floorplan">平面圖底圖</span>
+        </h2>
+        <div class="space-y-3">
+          <div>
+            <button type="button" id="btn-fp-upload" class="btn-secondary w-full">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
+              <span data-i18n="lbl_fp_file">上傳平面圖（PNG / JPG）</span>
+            </button>
+            <input type="file" id="fp-file" accept="image/png,image/jpeg" class="hidden">
+            <p id="fp-name" class="mt-1 truncate text-[11px] text-slate-400" data-i18n="fp_none">尚未選擇圖片</p>
+          </div>
+          <div>
+            <label class="side-label" for="fp-opacity"><span data-i18n="lbl_fp_opacity">底圖不透明度</span>: <span id="fp-opacity-val" class="font-mono text-sky-800">60%</span></label>
+            <input type="range" id="fp-opacity" min="0" max="100" step="5" value="60" class="w-full">
+          </div>
+          <div class="grid grid-cols-2 gap-1.5">
+            <button type="button" id="btn-fp-adjust" class="btn-secondary" disabled>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 9V5h4M19 15v4h-4M5 15v4h4M19 9V5h-4"/></svg>
+              <span id="btn-fp-adjust-label" data-i18n="fp_adjust">調整位置與大小</span>
+            </button>
+            <button type="button" id="btn-fp-reset" class="btn-secondary" disabled data-i18n="fp_reset">重設為場域大小</button>
+          </div>
+          <button type="button" id="btn-fp-remove" class="btn-secondary w-full !text-red-600 hover:!bg-red-50" disabled data-i18n="btn_fp_remove">移除平面圖</button>
+          <p class="text-[11px] leading-snug text-slate-400" data-i18n="fp_hint">平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。</p>
+        </div>
+      </section>
+
+      <div class="h-1"></div>
+
+    </div>
+    <div id="resize-handle" title="拖曳調整寬度 / Drag to resize"></div>
+  </aside>
+
+  <!-- ============ Main area ============ -->
+  <main id="main-area" class="flex h-full min-w-0 flex-1 flex-col gap-2 p-3">
+    <div id="banner" class="hidden items-start justify-between gap-3 rounded-lg border px-3 py-2 text-[12.5px]">
+      <span id="banner-msg" class="leading-snug"></span>
+      <button type="button" id="banner-close" class="shrink-0 font-bold opacity-60 hover:opacity-100" title="關閉 / Close">✕</button>
+    </div>
+
+    <div id="chips-row" class="flex min-h-[26px] flex-wrap items-center gap-2">
+      <span id="note-kriging" class="note-chip hidden border-sky-200 bg-sky-50 text-sky-800"></span>
+      <span id="note-spline" class="note-chip hidden border-amber-200 bg-amber-50 text-amber-700"></span>
+      <span id="oel-caption" class="note-chip hidden border-red-200 bg-red-50 text-red-700"></span>
+      <span id="note-fpedit" class="note-chip hidden border-sky-300 bg-sky-100 text-sky-800"></span>
+    </div>
+
+    <div id="plot-wrap" class="relative min-h-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div id="plot" class="absolute inset-0"></div>
+      <div id="plot-empty" class="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 rounded-xl bg-white text-center">
+        <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round">
+          <path d="M3 17c3-6 6-9 9-9s6 3 9 9"/><path d="M5 20c2.4-4 4.7-6 7-6s4.6 2 7 6"/><circle cx="7" cy="7" r="1.6" fill="#cbd5e1" stroke="none"/>
+        </svg>
+        <p class="text-sm font-semibold text-slate-500" data-i18n="empty_title">尚無分佈圖</p>
+        <p class="max-w-xs px-4 text-xs leading-relaxed text-slate-400" data-i18n="empty_hint">設定場域尺寸並輸入測點資料後點擊「產生分佈圖」，或先載入範例資料試用。</p>
+        <button type="button" id="btn-empty-sample" class="btn-secondary !border-sky-200 !text-sky-800 hover:!bg-sky-50" data-i18n="btn_sample">載入範例資料</button>
+      </div>
+      <!-- floor-plan on-plot editor -->
+      <div id="fp-editor" class="absolute z-[9] hidden cursor-move border-2 border-dashed border-sky-600/90 bg-sky-400/10">
+        <span id="fp-editor-label" class="absolute -top-6 left-0 whitespace-nowrap rounded bg-sky-700 px-1.5 py-0.5 font-mono text-[10px] text-white"></span>
+        <div class="fp-handle" data-dir="nw"></div>
+        <div class="fp-handle" data-dir="ne"></div>
+        <div class="fp-handle" data-dir="sw"></div>
+        <div class="fp-handle" data-dir="se"></div>
+      </div>
+      <div id="plot-busy" class="absolute inset-0 z-10 hidden items-center justify-center rounded-xl bg-white/70">
+        <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2.5 shadow">
+          <div class="h-4 w-4 animate-spin rounded-full border-2 border-sky-700 border-t-transparent"></div>
+          <span class="text-sm text-slate-600" data-i18n="computing">計算中…</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <button type="button" id="btn-png" class="btn-secondary" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span data-i18n="btn_png">下載 PNG</span>
+      </button>
+      <button type="button" id="btn-csv-dl" class="btn-secondary" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+        <span data-i18n="btn_csv">下載網格 CSV</span>
+      </button>
+      <span id="grid-info" class="ml-auto text-[11px] text-slate-400"></span>
+    </div>
+
+    <!-- ---- Statistics box ---- -->
+    <div id="stats-card" class="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm">
+      <div class="mb-1.5 flex items-center gap-2">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#075985" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15v3m4-8v8m4-5v5m4-11v11"/></svg>
+        <span class="text-[13px] font-bold text-sky-800" data-i18n="sec_stats">數理統計</span>
+        <span class="ml-auto text-[10px] text-slate-400" data-i18n="stats_hint_short">基於通過 QAQC 之測點（GM／GSD 為幾何平均／幾何標準差）</span>
+      </div>
+      <div id="stats-grid" class="grid grid-cols-5 gap-1.5 md:grid-cols-9"></div>
+    </div>
+
+    <p class="text-[10.5px] leading-snug text-slate-400">
+      <b data-i18n="disc_label">免責聲明：</b><span data-i18n="disc_short">本工具之插值結果為有限測點之數學估計，僅供參考，不得作為法規合規判定或健康風險評估之唯一依據。</span>
+      <button type="button" id="disc-more" class="text-sky-700 underline" data-i18n="disc_more">詳全文</button>
+    </p>
+  </main>
+</div>
+
+<!-- ============ About modal ============ -->
+<div id="modal-about" class="fixed inset-0 z-50 hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-slate-900/45" data-close="1"></div>
+  <div class="relative max-h-[86vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl">
+    <button type="button" class="absolute right-3 top-3 flex h-8 w-8 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700" data-close="1" title="關閉 / Close">✕</button>
+    <div class="modal-zh space-y-4 text-[13.5px] leading-relaxed text-slate-700">
+      <h3 class="text-lg font-bold text-sky-900">關於我們</h3>
+      <p>本工具用於將作業場所危害性化學品之定點測量結果，繪製為濃度空間分佈圖（等值線圖），協助職業衛生人員辨識高暴露熱區、規劃採樣與改善通風配置，並作為風險溝通之輔助工具。</p>
+      <p><b>隱私與資料安全</b>：所有運算（含插值與統計）皆透過 WebAssembly 技術（Pyodide＋numpy／scipy）於您的瀏覽器內完成；輸入之測量資料與平面圖<b>不會上傳</b>至任何伺服器，本工具亦不蒐集、儲存任何資料。</p>
+      <p><b>技術架構</b>：Pyodide（瀏覽器內 Python）、numpy／scipy（數值運算與插值）、Plotly.js（圖表渲染）。原始碼為單一 HTML 檔案，可部署於任何靜態網頁空間。</p>
+      <p class="text-slate-500">版本：v1.2.0（2026 年 6 月）。詳細操作請參閱「使用說明」頁。開發單位與聯絡資訊請洽系統管理者。</p>
+      <h4 class="font-bold text-sky-900">免責聲明</h4>
+      <ol class="list-decimal space-y-1.5 pl-5 text-[13px]">
+        <li>本工具之插值結果為基於有限測點之數學估計，僅供作業環境危害分佈之視覺化參考。</li>
+        <li>插值圖不得作為法規遵循判定、暴露合規評估或健康風險評估之唯一依據；正式評估應依相關法規之採樣策略與分析方法辦理。</li>
+        <li>估計品質高度取決於輸入資料之數量、品質與空間分佈；測點涵蓋範圍外之外插結果不確定性較高，應謹慎解讀。</li>
+        <li>本工具按「現狀」提供，不對結果之正確性、完整性或特定用途之適用性提供任何明示或默示之擔保；使用本工具所生之任何直接或間接損失，開發者不負賠償責任。</li>
+        <li>所有資料僅於使用者瀏覽器端處理；本工具不蒐集、傳輸或儲存任何輸入資料。</li>
+      </ol>
+    </div>
+    <div class="modal-en hidden space-y-4 text-[13.5px] leading-relaxed text-slate-700">
+      <h3 class="text-lg font-bold text-sky-900">About</h3>
+      <p>This tool turns point measurements of hazardous chemical concentrations in workplaces into spatial contour maps, helping occupational hygienists identify exposure hot spots, plan sampling, evaluate ventilation layouts, and communicate risks.</p>
+      <p><b>Privacy &amp; data safety</b>: all computation (interpolation and statistics) runs inside your browser via WebAssembly (Pyodide + numpy/scipy). Your measurement data and floor plans are <b>never uploaded</b> to any server, and the tool collects and stores nothing.</p>
+      <p><b>Technology</b>: Pyodide (Python in the browser), numpy/scipy (numerical computing and interpolation), and Plotly.js (rendering). The source is a single HTML file deployable on any static hosting.</p>
+      <p class="text-slate-500">Version v1.2.0 (June 2026). See the "User Guide" page for detailed instructions. For development and contact information, please reach the site administrator.</p>
+      <h4 class="font-bold text-sky-900">Disclaimer</h4>
+      <ol class="list-decimal space-y-1.5 pl-5 text-[13px]">
+        <li>Interpolated surfaces are mathematical estimates from a limited number of points, provided solely as a visualization aid for workplace hazard distribution.</li>
+        <li>The maps must not be used as the sole basis for regulatory compliance determinations, exposure assessments, or health risk assessments; formal evaluations must follow the sampling strategies and analytical methods required by applicable regulations.</li>
+        <li>Estimate quality depends strongly on the quantity, quality, and spatial coverage of the input data; extrapolation outside the measured area carries higher uncertainty and should be interpreted with caution.</li>
+        <li>The tool is provided "as is" without warranties of any kind, express or implied, including accuracy, completeness, or fitness for a particular purpose; the developers accept no liability for losses arising from its use.</li>
+        <li>All data is processed locally in your browser; nothing is collected, transmitted, or stored by this tool.</li>
+      </ol>
+    </div>
+  </div>
+</div>
+
+<!-- ============ Python interpolation module (read as a JS string, run via pyodide.runPython) ============ -->
+<script type="text/x-python" id="py-src">
+# =============================================================
+# Interpolation module for the Workplace Concentration Contour
+# Tool. Runs inside Pyodide; exposes interpolate() to JS.
+# NOTE: this source is embedded in index.html inside a script
+# tag — it must never contain a closing script-tag sequence.
+# =============================================================
+import json
+import math
+import numpy as np
+
+SCIPY_OK = True
+try:
+    from scipy.interpolate import (
+        LinearNDInterpolator,
+        NearestNDInterpolator,
+        RBFInterpolator,
+        RectBivariateSpline,
+    )
+except Exception:
+    SCIPY_OK = False
+
+PYKRIGE_OK = True
+try:
+    from pykrige.ok import OrdinaryKriging
+except Exception:
+    PYKRIGE_OK = False
+
+
+class InterpError(ValueError):
+    pass
+
+
+def _fail(zh, en):
+    raise InterpError(zh + " / " + en)
+
+
+def _parse_points(points_json):
+    try:
+        raw = json.loads(points_json)
+    except Exception:
+        _fail("資料格式錯誤，無法解析 JSON", "Invalid data: JSON parsing failed")
+    x, y, z = [], [], []
+    for p in raw:
+        try:
+            xi, yi, zi = float(p["x"]), float(p["y"]), float(p["c"])
+        except Exception:
+            continue
+        if math.isfinite(xi) and math.isfinite(yi) and math.isfinite(zi):
+            x.append(xi)
+            y.append(yi)
+            z.append(zi)
+    return np.asarray(x, float), np.asarray(y, float), np.asarray(z, float)
+
+
+def _dedupe(x, y, z):
+    # Average concentration values at duplicated coordinates so that
+    # triangulation / RBF / kriging matrices stay non-singular.
+    key = np.round(np.column_stack([x, y]), 9)
+    uniq, inv = np.unique(key, axis=0, return_inverse=True)
+    if uniq.shape[0] == x.shape[0]:
+        return x, y, z
+    inv = inv.ravel()
+    zsum = np.zeros(uniq.shape[0])
+    cnt = np.zeros(uniq.shape[0])
+    np.add.at(zsum, inv, z)
+    np.add.at(cnt, inv, 1.0)
+    return uniq[:, 0].astype(float), uniq[:, 1].astype(float), zsum / cnt
+
+
+# ---------------- IDW ----------------
+
+def _idw(x, y, z, GX, GY, power):
+    shape = GX.shape
+    gx = GX.ravel()
+    gy = GY.ravel()
+    n = gx.size
+    p = float(power)
+    out = np.empty(n)
+    chunk = max(64, int(2_000_000 // max(x.size, 1)))
+    for i in range(0, n, chunk):
+        dx = gx[i:i + chunk, None] - x[None, :]
+        dy = gy[i:i + chunk, None] - y[None, :]
+        d = np.sqrt(dx * dx + dy * dy)
+        coincident = d < 1e-10
+        d = np.maximum(d, 1e-12)
+        w = 1.0 / np.power(d, p)
+        val = (w @ z) / w.sum(axis=1)
+        hit = coincident.any(axis=1)
+        if hit.any():
+            idx = np.argmax(coincident, axis=1)
+            val[hit] = z[idx[hit]]
+        out[i:i + chunk] = val
+    return out.reshape(shape)
+
+
+# ---------------- Linear ----------------
+
+def _linear(x, y, z, GX, GY):
+    if not SCIPY_OK:
+        _fail("scipy 未載入，無法使用線性插值", "scipy not loaded; linear method unavailable")
+    pts = np.column_stack([x, y])
+    try:
+        li = LinearNDInterpolator(pts, z)
+        Z = li(GX, GY)
+    except Exception:
+        _fail(
+            "線性插值失敗：測點可能共線，無法建立三角網格",
+            "Linear interpolation failed: points may be collinear (triangulation failed)",
+        )
+    nan = ~np.isfinite(Z)
+    if nan.any():
+        ni = NearestNDInterpolator(pts, z)
+        Z[nan] = ni(GX[nan], GY[nan])
+    return Z
+
+
+# ---------------- RBF ----------------
+
+def _rbf(x, y, z, GX, GY):
+    if not SCIPY_OK:
+        _fail("scipy 未載入，無法使用 RBF", "scipy not loaded; RBF method unavailable")
+    sx = x.max() - x.min()
+    sy = y.max() - y.min()
+    sx = sx if sx > 1e-12 else 1.0
+    sy = sy if sy > 1e-12 else 1.0
+    P = np.column_stack([(x - x.min()) / sx, (y - y.min()) / sy])
+    G = np.column_stack([
+        (GX.ravel() - x.min()) / sx,
+        (GY.ravel() - y.min()) / sy,
+    ])
+    rbf = RBFInterpolator(P, z, kernel="thin_plate_spline", smoothing=0.0)
+    return rbf(G).reshape(GX.shape)
+
+
+# ---------------- Spline ----------------
+
+def _spline(x, y, z, GX, GY):
+    if not SCIPY_OK:
+        _fail("scipy 未載入，無法使用 Spline", "scipy not loaded; spline method unavailable")
+    n = x.size
+    if n < 16:
+        # Too few points for stable grid binning: fall back to RBF.
+        return _rbf(x, y, z, GX, GY), "rbf_fallback"
+    nb = int(min(12, max(4, math.floor(math.sqrt(n)))))
+    ex = np.linspace(x.min(), x.max(), nb + 1)
+    ey = np.linspace(y.min(), y.max(), nb + 1)
+    cx = 0.5 * (ex[:-1] + ex[1:])
+    cy = 0.5 * (ey[:-1] + ey[1:])
+    ix = np.clip(np.digitize(x, ex) - 1, 0, nb - 1)
+    iy = np.clip(np.digitize(y, ey) - 1, 0, nb - 1)
+    zsum = np.zeros((nb, nb))
+    cnt = np.zeros((nb, nb))
+    np.add.at(zsum, (ix, iy), z)
+    np.add.at(cnt, (ix, iy), 1.0)
+    B = np.zeros((nb, nb))
+    filled = cnt > 0
+    B[filled] = zsum[filled] / cnt[filled]
+    if (~filled).any():
+        # Estimate empty bins from the raw points (IDW, p=2).
+        CX, CY = np.meshgrid(cx, cy, indexing="ij")
+        B[~filled] = _idw(x, y, z, CX[~filled], CY[~filled], 2.0)
+    k = int(min(3, nb - 1))
+    spl = RectBivariateSpline(cx, cy, B, kx=k, ky=k)
+    gx = GX[0, :]
+    gy = GY[:, 0]
+    return spl(gx, gy).T, None
+
+
+# ---------------- Kriging ----------------
+
+def _spherical_shape(h, a):
+    r = np.clip(h / a, 0.0, None)
+    val = 1.5 * r - 0.5 * r ** 3
+    return np.where(h >= a, 1.0, val)
+
+
+def _gamma(h, nugget, psill, a):
+    g = nugget + psill * _spherical_shape(h, a)
+    return np.where(h < 1e-12, 0.0, g)
+
+
+def _variogram_params(x, y, z):
+    # Experimental semivariogram: gamma(h) = mean of 0.5*(zi - zj)^2 per lag bin,
+    # then fit nugget + partial sill of a spherical model with range fixed
+    # from the data extent (least squares; heuristics as fallback).
+    n = x.size
+    dx = x[:, None] - x[None, :]
+    dy = y[:, None] - y[None, :]
+    H = np.sqrt(dx * dx + dy * dy)
+    iu = np.triu_indices(n, 1)
+    h = H[iu]
+    g = 0.5 * (z[:, None] - z[None, :])[iu] ** 2
+    hmax = float(h.max()) if h.size else 0.0
+    if hmax <= 1e-12:
+        return 0.0, max(float(np.var(z)), 1e-12), 1.0
+    a = 0.5 * hmax
+    psill = max(float(np.var(z)), 1e-12)
+    nugget = 0.0
+    nbins = 10
+    edges = np.linspace(0.0, hmax * (1 + 1e-9), nbins + 1)
+    hc, gc = [], []
+    for i in range(nbins):
+        m = (h >= edges[i]) & (h < edges[i + 1])
+        if i == nbins - 1:
+            m = (h >= edges[i]) & (h <= edges[i + 1])
+        if m.sum() > 0:
+            hc.append(h[m].mean())
+            gc.append(g[m].mean())
+    hc = np.asarray(hc)
+    gc = np.asarray(gc)
+    if hc.size >= 3 and gc.max() > 1e-12:
+        F = _spherical_shape(hc, a)
+        A = np.column_stack([np.ones_like(F), F])
+        try:
+            coef, _res, _rk, _sv = np.linalg.lstsq(A, gc, rcond=None)
+            n0, s0 = float(coef[0]), float(coef[1])
+            if s0 > 1e-12:
+                psill = s0
+                # keep nugget non-negative and below the partial sill
+                nugget = min(max(n0, 0.0), psill)
+        except Exception:
+            pass
+    return nugget, psill, a
+
+
+def _kriging_basic(x, y, z, GX, GY):
+    # Ordinary Kriging, pure numpy implementation.
+    # Solves [Gamma 1; 1' 0][lambda; mu] = [gamma0; 1] per grid node.
+    n = x.size
+    if n > 2000:
+        _fail(
+            "測點數過多（>2000），基礎克利金計算量過大，請改用 IDW",
+            "Too many points (>2000) for the basic kriging solver; please use IDW",
+        )
+    zmean = float(z.mean())
+    zvar = float(np.var(z))
+    if zvar < 1e-15:
+        return np.full(GX.shape, zmean)
+    nugget, psill, a = _variogram_params(x, y, z)
+    dx = x[:, None] - x[None, :]
+    dy = y[:, None] - y[None, :]
+    H = np.sqrt(dx * dx + dy * dy)
+    A = np.empty((n + 1, n + 1))
+    A[:n, :n] = _gamma(H, nugget, psill, a)
+    A[n, :n] = 1.0
+    A[:n, n] = 1.0
+    A[n, n] = 0.0
+    try:
+        Ainv = np.linalg.inv(A)
+        solve = lambda B: Ainv @ B
+    except np.linalg.LinAlgError:
+        Apinv = np.linalg.pinv(A)
+        solve = lambda B: Apinv @ B
+    shape = GX.shape
+    gx = GX.ravel()
+    gy = GY.ravel()
+    out = np.empty(gx.size)
+    chunk = max(500, int(4_000_000 // (n + 1)))
+    for i in range(0, gx.size, chunk):
+        ddx = x[:, None] - gx[None, i:i + chunk]
+        ddy = y[:, None] - gy[None, i:i + chunk]
+        h0 = np.sqrt(ddx * ddx + ddy * ddy)
+        B = np.empty((n + 1, h0.shape[1]))
+        B[:n] = _gamma(h0, nugget, psill, a)
+        B[n] = 1.0
+        lam = solve(B)
+        out[i:i + chunk] = lam[:n].T @ z
+    return out.reshape(shape)
+
+
+def _kriging(x, y, z, GX, GY):
+    gx = GX[0, :]
+    gy = GY[:, 0]
+    if PYKRIGE_OK:
+        try:
+            ok = OrdinaryKriging(
+                x, y, z,
+                variogram_model="spherical",
+                verbose=False,
+                enable_plotting=False,
+            )
+            Z, _ss = ok.execute("grid", gx, gy)
+            return np.ma.filled(np.ma.masked_invalid(Z), np.nan), "pykrige"
+        except Exception:
+            return _kriging_basic(x, y, z, GX, GY), "basic"
+    return _kriging_basic(x, y, z, GX, GY), "basic"
+
+
+# ---------------- Main entry ----------------
+
+def _parse_bounds(bounds_json):
+    # Optional explicit grid bounds [x0, x1, y0, y1] (the field rectangle).
+    if not bounds_json:
+        return None
+    try:
+        b = json.loads(bounds_json)
+        x0, x1, y0, y1 = float(b[0]), float(b[1]), float(b[2]), float(b[3])
+    except Exception:
+        return None
+    vals = (x0, x1, y0, y1)
+    if not all(math.isfinite(v) for v in vals):
+        return None
+    if x1 - x0 < 1e-9 or y1 - y0 < 1e-9:
+        return None
+    return vals
+
+
+def _interpolate_impl(points_json, method, grid_n, power, bounds_json=""):
+    x, y, z = _parse_points(points_json)
+    if x.size < 4:
+        _fail("有效測點不足（至少需 4 點）", "Not enough valid points (at least 4 required)")
+    x, y, z = _dedupe(x, y, z)
+    if x.size < 4:
+        _fail(
+            "去除重複座標後測點不足 4 點",
+            "Fewer than 4 points remain after merging duplicate coordinates",
+        )
+    if (x.max() - x.min()) < 1e-9 or (y.max() - y.min()) < 1e-9:
+        _fail(
+            "測點需同時在 X 與 Y 方向上有分佈",
+            "Points must span both the X and Y directions",
+        )
+    grid_n = int(min(300, max(10, int(grid_n))))
+    power = float(min(8.0, max(0.5, float(power))))
+    bounds = _parse_bounds(bounds_json)
+    if bounds is None:
+        bounds = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
+    bx0, bx1, by0, by1 = bounds
+    gx = np.linspace(bx0, bx1, grid_n)
+    gy = np.linspace(by0, by1, grid_n)
+    GX, GY = np.meshgrid(gx, gy)
+
+    method = str(method).lower()
+    note = None
+    backend = None
+    if method == "idw":
+        Z = _idw(x, y, z, GX, GY, power)
+        used = "idw"
+    elif method == "linear":
+        Z = _linear(x, y, z, GX, GY)
+        used = "linear"
+    elif method == "rbf":
+        Z = _rbf(x, y, z, GX, GY)
+        used = "rbf"
+    elif method == "spline":
+        Z, note = _spline(x, y, z, GX, GY)
+        used = "rbf" if note == "rbf_fallback" else "spline"
+    elif method == "kriging":
+        Z, backend = _kriging(x, y, z, GX, GY)
+        used = "kriging"
+    else:
+        _fail("未知的插值方法: " + method, "Unknown interpolation method: " + method)
+
+    Z = np.asarray(Z, float)
+    # Concentrations cannot be negative: floor extrapolation undershoot
+    # (RBF / spline / kriging may dip below zero outside the data hull).
+    Z = np.where(np.isfinite(Z), np.maximum(Z, 0.0), Z)
+    finite = np.isfinite(Z)
+    if not finite.any():
+        _fail("插值結果全為無效值", "Interpolation produced no finite values")
+    zmin = float(Z[finite].min())
+    zmax = float(Z[finite].max())
+    Zr = np.round(Z, 6)
+    z_list = np.where(finite, Zr, None).tolist()
+    return {
+        "grid_x": np.round(GX, 4).tolist(),
+        "grid_y": np.round(GY, 4).tolist(),
+        "grid_z": z_list,
+        "x_range": [bx0, bx1],
+        "y_range": [by0, by1],
+        "z_range": [zmin, zmax],
+        "n_points": int(x.size),
+        "method_used": used,
+        "note": note,
+        "kriging_backend": backend,
+    }
+
+
+def interpolate(points_json, method, grid_n, power, bounds_json=""):
+    """Returns a JSON string: either the grid result or {"error": "zh / en"}.
+
+    bounds_json: optional JSON "[x0, x1, y0, y1]" — the field rectangle the
+    grid should span; defaults to the data bounding box when empty/invalid.
+    """
+    try:
+        return json.dumps(_interpolate_impl(points_json, method, grid_n, power, bounds_json))
+    except InterpError as e:
+        return json.dumps({"error": str(e)})
+    except Exception as e:  # unexpected — surface the type for debugging
+        return json.dumps({"error": "計算發生未預期錯誤 / Unexpected error: " + type(e).__name__ + ": " + str(e)})
+
+
+def runtime_info():
+    return json.dumps({"scipy": SCIPY_OK, "pykrige": PYKRIGE_OK})
+
+</script>
+
+<script>
+'use strict';
+
+/* ================= Constants ================= */
+const PYODIDE_INDEX_URL = 'https://cdn.jsdelivr.net/pyodide/v0.29.4/full/';
+
+const SAMPLE_DATA = [
+  {x:2,  y:2,  c:520}, {x:5,  y:2,  c:310}, {x:5,  y:5,  c:240},
+  {x:2,  y:8,  c:190}, {x:8,  y:2,  c:175}, {x:8,  y:8,  c:120},
+  {x:2,  y:13, c:95},  {x:12, y:2,  c:88},  {x:12, y:8,  c:65},
+  {x:8,  y:13, c:55},  {x:16, y:2,  c:42},  {x:16, y:8,  c:35},
+  {x:12, y:13, c:30},  {x:18, y:5,  c:28},  {x:18, y:13, c:18},
+];
+const SAMPLE_OEL = 100;
+const SAMPLE_FIELD = [20, 15];
+
+const COLORSCALES = {
+  Viridis:  { scale: 'Viridis' },
+  Jet:      { scale: 'Jet' },
+  RdYlGn_r: { scale: [[0,'#006837'],[0.1,'#1a9850'],[0.2,'#66bd63'],[0.3,'#a6d96a'],[0.4,'#d9ef8b'],[0.5,'#ffffbf'],[0.6,'#fee08b'],[0.7,'#fdae61'],[0.8,'#f46d43'],[0.9,'#d73027'],[1,'#a50026']] },
+  Hot_r:    { scale: 'Hot', reverse: true },
+  Plasma:   { scale: [[0,'#0d0887'],[0.125,'#46039f'],[0.25,'#7201a8'],[0.375,'#9c179e'],[0.5,'#bd3786'],[0.625,'#d8576b'],[0.75,'#ed7953'],[0.875,'#fb9f3a'],[1,'#f0f921']] },
+};
+const SWATCH_GRADIENTS = {
+  Viridis:  ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
+  Jet:      ['#00007f', '#0000ff', '#00ffff', '#ffff00', '#ff0000', '#7f0000'],
+  RdYlGn_r: ['#006837', '#66bd63', '#ffffbf', '#f46d43', '#a50026'],
+  Hot_r:    ['#ffffff', '#ffff33', '#ff4400', '#990000', '#0b0000'],
+  Plasma:   ['#0d0887', '#9c179e', '#d8576b', '#fb9f3a', '#f0f921'],
+};
+
+const I18N = {
+  zh: {
+    sheet_title: '資料與設定',
+    panel_resize_hint: '拖曳右側邊緣可調整寬度',
+    brand_subtitle: '作業場所濃度分佈圖繪製工具',
+    nav_guide: '使用說明', nav_about: '關於我們',
+    sec_field: '場域尺寸', sec_data: '資料輸入', sec_stats: '數理統計',
+    sec_settings: '參數設定', sec_chart: '圖表設定', sec_floorplan: '平面圖底圖',
+    lbl_field_w: '寬度 X (m)', lbl_field_h: '高度 Y (m)',
+    field_hint: '分佈圖固定以此尺寸與長寬比例繪製；座標原點 (0,0) 在左下角。',
+    field_warn: '請輸入有效的場域尺寸（寬、高需大於 0）',
+    th_x: 'X座標(m)', th_y: 'Y座標(m)', th_c: '濃度值',
+    btn_add_row: '＋ 新增列', btn_upload_csv: '上傳 CSV', btn_sample: '載入範例資料',
+    btn_generate: '產生分佈圖', btn_png: '下載 PNG', btn_csv: '下載網格 CSV',
+    lbl_method: '插值方法', lbl_power: 'IDW 冪次 p', lbl_grid: '網格解析度',
+    lbl_unit: '濃度單位', lbl_oel: 'OEL 閾值（選填）',
+    lbl_title: '圖表標題', lbl_colorscale: '色階',
+    lbl_contour_opacity: '分佈圖不透明度', contour_opacity_hint: '疊加平面圖時可調低此值，使底圖更清楚。',
+    lbl_font_color: '標註字色', lbl_font_size: '字級', lbl_marker_size: '點大小',
+    lbl_fp_file: '上傳平面圖（PNG / JPG）', lbl_fp_opacity: '底圖不透明度',
+    btn_fp_remove: '移除平面圖', fp_none: '尚未選擇圖片',
+    fp_adjust: '調整位置與大小', fp_adjust_done: '完成調整', fp_reset: '重設為場域大小',
+    fp_hint: '平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。',
+    fp_edit_chip: '拖曳藍框移動平面圖，拉動四角縮放',
+    status_points: '有效測點', status_bbox: '資料範圍',
+    stats_hint_short: '基於通過 QAQC 之測點（GM／GSD 為幾何平均／幾何標準差）',
+    stat_n: '樣本數', stat_min: '最小值', stat_max: '最大值', stat_am: '平均 AM',
+    stat_med: '中位數', stat_sd: '標準差', stat_gm: 'GM', stat_gsd: 'GSD', stat_oel: '>OEL',
+    qaqc_pass: '✓ QAQC：全部測點通過檢核',
+    qaqc_excl: '排除', qaqc_zero: '0值', qaqc_neg: '負值', qaqc_oob: '超出場域',
+    qaqc_high: '標記異常高值', qaqc_high_kept: '（納入計算，可點 ⚠ 排除）', qaqc_invalid: '非數值',
+    qaqc_outlier_excl: '已排除異常值',
+    row_zero: '0 值：已自動排除', row_neg: '負值：不合理，已排除',
+    row_oob: '超出場域範圍：已排除',
+    row_high_in: '疑似異常高值（> Q3+3×IQR）；目前納入計算，點擊以排除',
+    row_high_out: '異常高值已排除計算；點擊以重新納入',
+    warn_few: '至少需要 4 個有效測點才能進行插值',
+    computing: '計算中…',
+    empty_title: '尚無分佈圖',
+    empty_hint: '設定場域尺寸並輸入至少 4 個有效測點，即會自動繪製分佈圖；或先載入範例資料試用。',
+    err_not_ready: '運算環境尚未就緒，無法計算',
+    err_csv_parse: 'CSV 解析失敗', err_csv_cols: '無法辨識 CSV 欄位（需要 x、y、c／濃度 欄位）',
+    csv_imported: '已匯入 {n} 個測點', csv_skipped: '，略過 {m} 列無效資料',
+    pkg_fail: '部分套件載入失敗：', pkg_methods_off: '不可用方法：', pkg_ok_methods: '仍可使用：',
+    kriging_note: 'Kriging（基礎實作 / basic implementation）：pykrige 未能安裝，已使用內建普通克利金',
+    spline_note: '測點少於 16 點，Spline 已自動改用 RBF',
+    oel_caption: '粗紅線＝OEL　紅色半透明區＝超標範圍',
+    status_ready: '運算環境就緒', status_loading: '運算環境載入中…', status_failed: '運算環境載入失敗',
+    load_err: '運算環境載入失敗，請檢查網路連線後重試。',
+    row_del: '刪除此列',
+    ph_oel: '例：100',
+    disc_label: '免責聲明：',
+    disc_short: '本工具之插值結果為有限測點之數學估計，僅供參考，不得作為法規合規判定或健康風險評估之唯一依據。',
+    disc_more: '詳全文',
+    tip_idw: '以距離倒數加權平均估計，越近的測點影響越大，計算快速且穩定。',
+    tip_linear: '在測點構成的三角網格內做線性插值，凸包外以最近測點值填補。',
+    tip_rbf: '以薄板樣條徑向基函數擬合平滑曲面，適合不規則分佈的測點。',
+    tip_spline: '先將測點彙整為規則網格，再以雙變數樣條擬合（少於 16 點時自動改用 RBF）。',
+    tip_kriging: '依半變異圖建立地統計模型，提供考慮空間相關性的最佳線性無偏估計。',
+    m_idw: 'IDW（反距離加權）', m_linear: '線性 Linear', m_rbf: 'RBF（薄板樣條）',
+    m_spline: 'Spline（雙三次樣條）', m_kriging: 'Kriging（克利金）', m_kriging_basic: 'Kriging（基礎實作）',
+    na: '（不可用）',
+  },
+  en: {
+    sheet_title: 'Data & Settings',
+    panel_resize_hint: 'Drag the right edge to resize',
+    brand_subtitle: 'Workplace Concentration Contour Tool',
+    nav_guide: 'User Guide', nav_about: 'About',
+    sec_field: 'Field Size', sec_data: 'Data Input', sec_stats: 'Statistics',
+    sec_settings: 'Settings', sec_chart: 'Chart Settings', sec_floorplan: 'Floor Plan',
+    lbl_field_w: 'Width X (m)', lbl_field_h: 'Height Y (m)',
+    field_hint: 'The map is always drawn with this extent and aspect ratio; origin (0,0) is bottom-left.',
+    field_warn: 'Please enter valid field dimensions (width and height > 0)',
+    th_x: 'X (m)', th_y: 'Y (m)', th_c: 'Concentration',
+    btn_add_row: '＋ Add Row', btn_upload_csv: 'Upload CSV', btn_sample: 'Load Sample Data',
+    btn_generate: 'Generate Map', btn_png: 'Download PNG', btn_csv: 'Download Grid CSV',
+    lbl_method: 'Interpolation Method', lbl_power: 'IDW Power p', lbl_grid: 'Grid Resolution',
+    lbl_unit: 'Concentration Unit', lbl_oel: 'OEL Threshold (optional)',
+    lbl_title: 'Map Title', lbl_colorscale: 'Color Scale',
+    lbl_contour_opacity: 'Contour opacity', contour_opacity_hint: 'Lower this when overlaying a floor plan so the plan shows through.',
+    lbl_font_color: 'Label color', lbl_font_size: 'Font size', lbl_marker_size: 'Marker',
+    lbl_fp_file: 'Upload Floor Plan (PNG / JPG)', lbl_fp_opacity: 'Floor Plan Opacity',
+    btn_fp_remove: 'Remove Floor Plan', fp_none: 'No image selected',
+    fp_adjust: 'Adjust position & size', fp_adjust_done: 'Done adjusting', fp_reset: 'Reset to field size',
+    fp_hint: 'The floor plan is scaled to the field size by default; click "Adjust position & size" to drag and resize it directly on the plot. If the overlay is unclear, lower the contour opacity under "Chart Settings".',
+    fp_edit_chip: 'Drag the blue box to move the plan; pull corners to resize',
+    status_points: 'Valid points', status_bbox: 'Extent',
+    stats_hint_short: 'Based on QA/QC-passed points (GM/GSD = geometric mean / geometric SD)',
+    stat_n: 'n', stat_min: 'Min', stat_max: 'Max', stat_am: 'Mean',
+    stat_med: 'Median', stat_sd: 'SD', stat_gm: 'GM', stat_gsd: 'GSD', stat_oel: '>OEL',
+    qaqc_pass: '✓ QA/QC: all points passed',
+    qaqc_excl: 'excluded', qaqc_zero: 'zero', qaqc_neg: 'negative', qaqc_oob: 'out of field',
+    qaqc_high: 'flagged high outlier', qaqc_high_kept: ' (included; click ⚠ to exclude)', qaqc_invalid: 'non-numeric',
+    qaqc_outlier_excl: 'excluded outlier',
+    row_zero: 'Zero value: automatically excluded', row_neg: 'Negative value: unreasonable, excluded',
+    row_oob: 'Outside the field extent: excluded',
+    row_high_in: 'Suspected high outlier (> Q3+3×IQR); included — click to exclude',
+    row_high_out: 'Outlier excluded from computation — click to include',
+    warn_few: 'At least 4 valid points are required for interpolation',
+    computing: 'Computing…',
+    empty_title: 'No map yet',
+    empty_hint: 'Set the field size and enter at least 4 valid points — the map is drawn automatically; or load the sample data to try it out.',
+    err_not_ready: 'Computing runtime is not ready yet',
+    err_csv_parse: 'CSV parsing failed', err_csv_cols: 'Could not detect CSV columns (need x, y, c/concentration)',
+    csv_imported: 'Imported {n} points', csv_skipped: ', skipped {m} invalid rows',
+    pkg_fail: 'Some packages failed to load: ', pkg_methods_off: 'Unavailable methods: ', pkg_ok_methods: 'Still available: ',
+    kriging_note: 'Kriging (基礎實作 / basic implementation): pykrige could not be installed; built-in Ordinary Kriging is used',
+    spline_note: 'Fewer than 16 points — Spline automatically fell back to RBF',
+    oel_caption: 'Bold red line = OEL; red shaded area = exceedance zone',
+    status_ready: 'Runtime ready', status_loading: 'Loading runtime…', status_failed: 'Runtime failed to load',
+    load_err: 'Failed to load the computing runtime. Please check your network connection and retry.',
+    row_del: 'Delete this row',
+    ph_oel: 'e.g. 100',
+    disc_label: 'Disclaimer: ',
+    disc_short: 'Interpolated results are mathematical estimates from limited points, for reference only — not a sole basis for regulatory compliance or health risk decisions.',
+    disc_more: 'Full text',
+    tip_idw: 'Inverse-distance weighted average; nearer points dominate. Fast and robust.',
+    tip_linear: 'Linear interpolation on a triangulated mesh; areas outside the convex hull are filled with nearest values.',
+    tip_rbf: 'Thin-plate-spline radial basis surface; good for irregularly scattered points.',
+    tip_spline: 'Bins points onto a regular grid, then fits a bivariate spline (falls back to RBF below 16 points).',
+    tip_kriging: 'Geostatistical estimation from a fitted semivariogram (best linear unbiased estimator).',
+    m_idw: 'IDW (Inverse Distance)', m_linear: 'Linear', m_rbf: 'RBF (Thin Plate Spline)',
+    m_spline: 'Spline (Bicubic)', m_kriging: 'Kriging', m_kriging_basic: 'Kriging (basic implementation)',
+    na: ' (unavailable)',
+  },
+};
+
+const LOAD_MSG = {
+  stage1: ['正在載入運算環境...', 'Loading scientific computing runtime...'],
+  stage2: ['載入 numpy, scipy, pandas...', 'Loading numpy, scipy, pandas...'],
+  stage3: ['載入插值模組 (Kriging)...', 'Loading interpolation modules (Kriging)...'],
+  stage4: ['初始化插值模組...', 'Initializing interpolation modules...'],
+  ready:  ['就緒！', 'Ready!'],
+};
+
+/* ================= State ================= */
+const state = {
+  lang: 'zh',
+  points: [],                 // raw strings, {x,y,c, drop?}
+  method: 'idw',
+  power: 2.0,
+  gridN: 100,
+  colorscale: 'Viridis',
+  chart: { fontColor: '#0f172a', fontSize: 10, markerSize: 7, contourOpacity: 100 },
+  floorplan: { dataUrl: null, name: '', opacity: 60, x0: 0, y0: 0, w: 20, h: 15, custom: false },
+  lastResult: null,
+  hasResult: false,
+  pyReady: false,
+  scipyOK: false,
+  pykrige: false,
+  failedPackages: [],
+  busy: false,
+};
+let pyodideInstance = null;
+let pyInterpolate = null;
+let recomputeTimer = null;
+let fpEditorOn = false;
+let fullRange = null;   // padded field range for double-click reset
+
+/* ================= DOM helpers ================= */
+const $ = (id) => document.getElementById(id);
+const els = {};
+['loading-overlay','load-bar','load-pct','load-msg','load-error','load-error-msg','btn-retry','btn-continue',
+ 'py-status','py-status-text','lang-toggle','lang-toggle-label','nav-about',
+ 'sidebar','sheet-handle','sheet-chevron','sidebar-scroll','panel-header','resize-handle','main-area',
+ 'field-w','field-h','field-warn',
+ 'table-body','btn-add-row','btn-upload-csv','csv-file','btn-sample','pt-count','bbox-dims','warn-few','qaqc-summary',
+ 'stats-grid','stats-card',
+ 'method-select','method-tip','method-help','power-row','power-slider','power-val','grid-slider','grid-val','grid-val2',
+ 'unit-input','oel-input',
+ 'title-input','colorscale-swatches','colorscale-name','contour-opacity','contour-opacity-val',
+ 'font-color','font-size','font-size-val','marker-size','marker-size-val',
+ 'btn-fp-upload','fp-file','fp-name','fp-opacity','fp-opacity-val','btn-fp-adjust','btn-fp-adjust-label','btn-fp-reset','btn-fp-remove',
+ 'banner','banner-msg','banner-close',
+ 'note-kriging','note-spline','oel-caption','note-fpedit',
+ 'plot-wrap','plot','plot-empty','plot-busy','btn-empty-sample','btn-png','btn-csv-dl','grid-info',
+ 'fp-editor','fp-editor-label','disc-more','modal-about',
+].forEach((id) => { els[id.replace(/-([a-z0-9])/g, (_, ch) => ch.toUpperCase())] = $(id); });
+
+const t = (key) => (I18N[state.lang][key] !== undefined ? I18N[state.lang][key] : key);
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+
+/* ================= i18n ================= */
+function applyI18n() {
+  const dict = I18N[state.lang];
+  document.querySelectorAll('[data-i18n]').forEach((el) => {
+    const k = el.dataset.i18n;
+    if (dict[k] !== undefined) el.textContent = dict[k];
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach((el) => {
+    const k = el.dataset.i18nPh;
+    if (dict[k] !== undefined) el.placeholder = dict[k];
+  });
+  document.querySelectorAll('.modal-zh').forEach((el) => el.classList.toggle('hidden', state.lang !== 'zh'));
+  document.querySelectorAll('.modal-en').forEach((el) => el.classList.toggle('hidden', state.lang !== 'en'));
+  els.langToggleLabel.textContent = state.lang === 'zh' ? 'EN' : '中文';
+  document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
+  els.btnFpAdjustLabel.textContent = fpEditorOn ? t('fp_adjust_done') : t('fp_adjust');
+  rebuildMethodOptions();
+  updateMethodHelp();
+  updatePyStatus();
+  updateNotes();
+  updateStatus();
+}
+
+/* ================= Field dimensions ================= */
+function fieldDims() {
+  const W = parseFloat(els.fieldW.value), H = parseFloat(els.fieldH.value);
+  return isFinite(W) && W > 0 && isFinite(H) && H > 0 ? [W, H] : null;
+}
+function updateFieldValidity() {
+  const ok = !!fieldDims();
+  els.fieldWarn.classList.toggle('hidden', ok);
+  els.fieldW.classList.toggle('invalid', !ok);
+  els.fieldH.classList.toggle('invalid', !ok);
+}
+
+/* ================= Method dropdown ================= */
+const METHODS = ['idw', 'linear', 'rbf', 'spline', 'kriging'];
+const SCIPY_METHODS = ['linear', 'rbf', 'spline'];
+
+function methodLabel(m) {
+  if (m === 'kriging') return state.pyReady && !state.pykrige ? t('m_kriging_basic') : t('m_kriging');
+  return t('m_' + m);
+}
+function methodAvailable(m) {
+  if (!state.pyReady) return true; // before init, leave enabled; generate is gated anyway
+  if (state.failedPackages.includes('numpy')) return false;
+  if (SCIPY_METHODS.includes(m) && !state.scipyOK) return false;
+  return true;
+}
+function rebuildMethodOptions() {
+  const sel = els.methodSelect;
+  sel.innerHTML = '';
+  METHODS.forEach((m) => {
+    const opt = document.createElement('option');
+    opt.value = m;
+    const ok = methodAvailable(m);
+    opt.textContent = methodLabel(m) + (ok ? '' : t('na'));
+    opt.disabled = !ok;
+    opt.title = t('tip_' + m);
+    sel.appendChild(opt);
+  });
+  if (!methodAvailable(state.method)) state.method = 'idw';
+  sel.value = state.method;
+}
+function updateMethodHelp() {
+  const tip = t('tip_' + state.method);
+  els.methodHelp.textContent = tip;
+  els.methodTip.title = tip;
+  els.powerRow.style.display = state.method === 'idw' ? '' : 'none';
+}
+
+/* ================= QAQC ================= */
+function quantile(sorted, p) {
+  const i = (sorted.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i);
+  return sorted[lo] + (sorted[hi] - sorted[lo]) * (i - lo);
+}
+function qaqcAll() {
+  const fd = fieldDims();
+  const rows = state.points.map((p) => {
+    const sx = String(p.x).trim(), sy = String(p.y).trim(), sc = String(p.c).trim();
+    if (sx === '' && sy === '' && sc === '') return { status: 'empty' };
+    const x = parseFloat(p.x), y = parseFloat(p.y), c = parseFloat(p.c);
+    if (!isFinite(x) || !isFinite(y) || !isFinite(c)) return { status: 'invalid' };
+    if (c < 0) return { status: 'neg', x, y, c };
+    if (c === 0) return { status: 'zero', x, y, c };
+    if (fd && (x < 0 || x > fd[0] || y < 0 || y > fd[1])) return { status: 'oob', x, y, c };
+    return { status: 'ok', x, y, c, drop: !!p.drop };
+  });
+  // flag suspected high outliers on all OK points (threshold independent of user drops)
+  const okRows = rows.filter((r) => r.status === 'ok');
+  if (okRows.length >= 5) {
+    const cs = okRows.map((r) => r.c).sort((a, b) => a - b);
+    const q1 = quantile(cs, 0.25), q3 = quantile(cs, 0.75), iqr = q3 - q1;
+    if (iqr > 0) {
+      const thr = q3 + 3 * iqr;
+      okRows.forEach((r) => { if (r.c > thr) r.status = 'high'; });
+    }
+  }
+  // user decision: a flagged high outlier the user chose to drop leaves the computation
+  rows.forEach((r) => { if (r.status === 'high' && r.drop) r.status = 'highdrop'; });
+  const included = rows
+    .filter((r) => r.status === 'ok' || r.status === 'high')
+    .map((r) => ({ x: r.x, y: r.y, c: r.c }));
+  const counts = { empty: 0, invalid: 0, neg: 0, zero: 0, oob: 0, high: 0, highdrop: 0, ok: 0 };
+  rows.forEach((r) => { counts[r.status]++; });
+  return { rows, included, counts };
+}
+function validPoints() {
+  return qaqcAll().included;
+}
+const ROW_FLAGS = {
+  zero:     { icon: '∅', cls: 'text-amber-500', tipKey: 'row_zero', rowCls: 'row-excluded', toggle: false },
+  neg:      { icon: '⛔', cls: 'text-amber-600', tipKey: 'row_neg', rowCls: 'row-excluded', toggle: false },
+  oob:      { icon: '⇱', cls: 'text-amber-600', tipKey: 'row_oob', rowCls: 'row-excluded', toggle: false },
+  high:     { icon: '⚠', cls: 'text-orange-500', tipKey: 'row_high_in', rowCls: 'row-high', toggle: true },
+  highdrop: { icon: '⊘', cls: 'text-slate-400 line-through', tipKey: 'row_high_out', rowCls: 'row-excluded', toggle: true },
+};
+function applyRowStatuses(rows) {
+  els.tableBody.querySelectorAll('tr').forEach((tr) => {
+    const r = rows[+tr.dataset.idx];
+    if (!r) return;
+    const flag = ROW_FLAGS[r.status];
+    tr.classList.remove('row-excluded', 'row-high');
+    const btn = tr.querySelector('.row-flag');
+    if (flag) {
+      tr.classList.add(flag.rowCls);
+      btn.textContent = flag.icon;
+      btn.className = `row-flag mr-0.5 text-[12px] leading-none ${flag.cls} ${flag.toggle ? 'cursor-pointer hover:scale-110' : 'cursor-help'}`;
+      btn.title = t(flag.tipKey);
+      btn.dataset.toggle = flag.toggle ? '1' : '';
+      btn.classList.remove('hidden');
+    } else {
+      btn.classList.add('hidden');
+      btn.dataset.toggle = '';
+      btn.title = '';
+    }
+  });
+}
+function renderQaqcSummary(counts) {
+  const el = els.qaqcSummary;
+  const excl = counts.zero + counts.neg + counts.oob + counts.invalid + counts.highdrop;
+  const totalRows = state.points.length - counts.empty;
+  if (!totalRows) { el.classList.add('hidden'); return; }
+  el.classList.remove('hidden', 'border-emerald-200', 'bg-emerald-50', 'text-emerald-700', 'border-amber-200', 'bg-amber-50', 'text-amber-700');
+  if (!excl && !counts.high) {
+    el.classList.add('border-emerald-200', 'bg-emerald-50', 'text-emerald-700');
+    el.textContent = t('qaqc_pass');
+    return;
+  }
+  el.classList.add('border-amber-200', 'bg-amber-50', 'text-amber-700');
+  const parts = [];
+  if (counts.zero) parts.push(`${t('qaqc_zero')} ${counts.zero}`);
+  if (counts.neg) parts.push(`${t('qaqc_neg')} ${counts.neg}`);
+  if (counts.oob) parts.push(`${t('qaqc_oob')} ${counts.oob}`);
+  if (counts.invalid) parts.push(`${t('qaqc_invalid')} ${counts.invalid}`);
+  if (counts.highdrop) parts.push(`${t('qaqc_outlier_excl')} ${counts.highdrop}`);
+  let msg = '';
+  if (excl) msg += `${t('qaqc_excl')} ${excl}（${parts.join('、')}）`;
+  if (counts.high) msg += `${excl ? '；' : ''}${t('qaqc_high')} ${counts.high}${t('qaqc_high_kept')}`;
+  el.textContent = msg;
+}
+
+/* ================= Statistics ================= */
+function fmtStat(v, dec) {
+  if (v === null || v === undefined || !isFinite(v)) return '–';
+  if (dec !== undefined) return v.toFixed(dec);
+  const a = Math.abs(v);
+  if (a >= 1000) return String(Math.round(v));
+  if (a >= 100) return v.toFixed(1).replace(/\.0$/, '');
+  if (a >= 1) return String(Math.round(v * 100) / 100);
+  return v.toPrecision(2);
+}
+function computeStats(included) {
+  const c = included.map((p) => p.c);
+  const n = c.length;
+  if (!n) return null;
+  const sorted = [...c].sort((a, b) => a - b);
+  const mean = c.reduce((s, v) => s + v, 0) / n;
+  const med = n % 2 ? sorted[(n - 1) / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+  const sd = n > 1 ? Math.sqrt(c.reduce((s, v) => s + (v - mean) ** 2, 0) / (n - 1)) : null;
+  const logs = c.map((v) => Math.log(v)); // QAQC guarantees c > 0
+  const lmean = logs.reduce((s, v) => s + v, 0) / n;
+  const gm = Math.exp(lmean);
+  const gsd = n > 1 ? Math.exp(Math.sqrt(logs.reduce((s, v) => s + (v - lmean) ** 2, 0) / (n - 1))) : null;
+  const oel = parseFloat(els.oelInput.value);
+  const nOver = isFinite(oel) && oel > 0 ? c.filter((v) => v > oel).length : null;
+  return { n, min: sorted[0], max: sorted[n - 1], mean, med, sd, gm, gsd, nOver };
+}
+function renderStats(included) {
+  const s = computeStats(included);
+  const cells = [
+    ['stat_n', s ? String(s.n) : '–'],
+    ['stat_min', s ? fmtStat(s.min) : '–'],
+    ['stat_max', s ? fmtStat(s.max) : '–'],
+    ['stat_am', s ? fmtStat(s.mean) : '–'],
+    ['stat_med', s ? fmtStat(s.med) : '–'],
+    ['stat_sd', s ? fmtStat(s.sd) : '–'],
+    ['stat_gm', s ? fmtStat(s.gm) : '–'],
+    ['stat_gsd', s && s.gsd !== null ? fmtStat(s.gsd, 2) : '–'],
+    ['stat_oel', s && s.nOver !== null ? String(s.nOver) : '–'],
+  ];
+  els.statsGrid.innerHTML = cells.map(([k, v]) =>
+    `<div class="stat-cell"><div class="k">${esc(t(k))}</div><div class="v">${esc(v)}</div></div>`).join('');
+}
+
+/* ================= Data table ================= */
+function makeRow(p = { x: '', y: '', c: '' }) {
+  return { x: String(p.x ?? ''), y: String(p.y ?? ''), c: String(p.c ?? ''), drop: false };
+}
+function renderTable() {
+  const tb = els.tableBody;
+  tb.innerHTML = state.points.map((p, i) => `
+    <tr class="border-t border-slate-100" data-idx="${i}">
+      <td class="px-1 py-1">${cellInput(p.x, 'x')}</td>
+      <td class="px-1 py-1">${cellInput(p.y, 'y')}</td>
+      <td class="px-1 py-1">${cellInput(p.c, 'c')}</td>
+      <td class="px-1 py-1">
+        <span class="flex items-center justify-end gap-0.5">
+          <button type="button" class="row-flag hidden"></button>
+          <button type="button" class="row-del h-6 w-6 shrink-0 rounded text-slate-300 hover:bg-red-50 hover:text-red-500" title="${esc(t('row_del'))}">✕</button>
+        </span>
+      </td>
+    </tr>`).join('');
+  tb.querySelectorAll('input').forEach(validateCell);
+}
+function cellInput(v, k) {
+  return `<input class="cell-input" data-k="${k}" inputmode="decimal" autocomplete="off" value="${esc(v)}">`;
+}
+function validateCell(input) {
+  const v = input.value.trim();
+  const bad = v !== '' && !isFinite(parseFloat(v));
+  input.classList.toggle('invalid', bad);
+}
+function updateStatus() {
+  const { rows, included, counts } = qaqcAll();
+  els.ptCount.textContent = included.length;
+  if (included.length >= 2) {
+    const xs = included.map((p) => p.x), ys = included.map((p) => p.y);
+    const w = Math.max(...xs) - Math.min(...xs);
+    const h = Math.max(...ys) - Math.min(...ys);
+    els.bboxDims.textContent = `${fmt(w)} × ${fmt(h)} m`;
+  } else {
+    els.bboxDims.textContent = '–';
+  }
+  applyRowStatuses(rows);
+  renderQaqcSummary(counts);
+  renderStats(included);
+  updateFieldValidity();
+  const enough = included.length >= 4;
+  els.warnFew.classList.toggle('hidden', enough || state.points.length === 0);
+}
+function fmt(v) {
+  return Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : v.toFixed(1);
+}
+
+/* table events (delegated) */
+els.tableBody.addEventListener('input', (e) => {
+  const input = e.target.closest('input');
+  if (!input) return;
+  const tr = input.closest('tr');
+  const idx = +tr.dataset.idx;
+  state.points[idx][input.dataset.k] = input.value;
+  validateCell(input);
+  updateStatus();
+  scheduleRecompute(1100);
+});
+els.tableBody.addEventListener('click', (e) => {
+  const flag = e.target.closest('.row-flag');
+  if (flag && flag.dataset.toggle === '1') {
+    const idx = +flag.closest('tr').dataset.idx;
+    state.points[idx].drop = !state.points[idx].drop;
+    updateStatus();
+    scheduleRecompute(150);
+    return;
+  }
+  const del = e.target.closest('button.row-del');
+  if (!del) return;
+  const idx = +del.closest('tr').dataset.idx;
+  state.points.splice(idx, 1);
+  renderTable();
+  updateStatus();
+  scheduleRecompute(800);
+});
+
+/* ================= CSV import ================= */
+function handleCsvFile(file) {
+  Papa.parse(file, {
+    header: false,
+    dynamicTyping: true,
+    skipEmptyLines: 'greedy',
+    complete: (res) => {
+      try {
+        importCsvRows(res.data);
+      } catch (err) {
+        showBanner(`${t('err_csv_parse')} / CSV import failed: ${err.message || err}`, 'error');
+      }
+    },
+    error: (err) => showBanner(`${t('err_csv_parse')} / CSV parsing failed: ${err.message || err}`, 'error'),
+  });
+}
+function importCsvRows(rows) {
+  if (!rows.length) throw new Error('empty file');
+  const first = rows[0].map((v) => String(v ?? '').trim());
+  const numericFirst = rows[0].every((v) => v === null || v === '' || typeof v === 'number');
+  let xi = 0, yi = 1, ci = 2, start = 0;
+  if (!numericFirst) {
+    // header row: detect x / y / c-concentration-濃度 columns
+    const norm = first.map((h) => h.toLowerCase());
+    const used = [];
+    const find = (pred) => {
+      const i = norm.findIndex((h, idx) => !used.includes(idx) && h && pred(h));
+      if (i >= 0) used.push(i);
+      return i;
+    };
+    xi = find((h) => h === 'x' || h.startsWith('x'));
+    yi = find((h) => h === 'y' || h.startsWith('y'));
+    ci = find((h) => h === 'c' || h.includes('conc') || h.includes('濃度') || h === 'z' || h === 'value' || h === 'val' || h.startsWith('c'));
+    start = 1;
+    if (xi < 0 || yi < 0 || ci < 0) {
+      showBanner(`${t('err_csv_cols')} / ${I18N[state.lang === 'zh' ? 'en' : 'zh'].err_csv_cols}`, 'error');
+      return;
+    }
+  } else if (rows[0].length < 3) {
+    throw new Error('needs at least 3 columns (x, y, c)');
+  }
+  const pts = [];
+  let skipped = 0;
+  for (let r = start; r < rows.length; r++) {
+    const row = rows[r];
+    const x = parseFloat(row[xi]), y = parseFloat(row[yi]), c = parseFloat(row[ci]);
+    if (isFinite(x) && isFinite(y) && isFinite(c)) pts.push({ x, y, c });
+    else skipped++;
+  }
+  if (!pts.length) {
+    showBanner(`${t('err_csv_cols')} / no numeric rows found`, 'error');
+    return;
+  }
+  state.points = pts.map(makeRow);
+  renderTable();
+  updateStatus();
+  let msg = t('csv_imported').replace('{n}', pts.length);
+  if (skipped) msg += t('csv_skipped').replace('{m}', skipped);
+  showBanner(msg, 'info', 6000);
+  if (state.pyReady && validPoints().length >= 4) compute();
+}
+
+/* ================= Floor plan ================= */
+function fpResetRect() {
+  const fp = state.floorplan;
+  const fd = fieldDims();
+  if (fd) {
+    fp.x0 = 0; fp.y0 = 0; fp.w = fd[0]; fp.h = fd[1];
+  } else if (state.lastResult) {
+    const r = state.lastResult;
+    fp.x0 = r.x_range[0]; fp.y0 = r.y_range[0];
+    fp.w = r.x_range[1] - r.x_range[0]; fp.h = r.y_range[1] - r.y_range[0];
+  } else {
+    fp.x0 = 0; fp.y0 = 0; fp.w = 20; fp.h = 15;
+  }
+  fp.custom = false;
+}
+function handleFpFile(file) {
+  const reader = new FileReader();
+  reader.onload = () => {
+    state.floorplan.dataUrl = reader.result;
+    state.floorplan.name = file.name;
+    fpResetRect();
+    els.fpName.textContent = file.name;
+    els.fpName.classList.remove('text-slate-400');
+    els.fpName.classList.add('text-slate-600');
+    // make the overlay legible by default: drop contour opacity if still at 100
+    if (state.chart.contourOpacity === 100) {
+      state.chart.contourOpacity = 70;
+      els.contourOpacity.value = 70;
+      els.contourOpacityVal.textContent = '70%';
+    }
+    updateFpButtons();
+    if (state.hasResult) renderPlot();
+  };
+  reader.readAsDataURL(file);
+}
+function removeFloorplan() {
+  setFpEditor(false);
+  state.floorplan.dataUrl = null;
+  state.floorplan.name = '';
+  els.fpName.textContent = t('fp_none');
+  els.fpName.classList.add('text-slate-400');
+  els.fpName.classList.remove('text-slate-600');
+  els.fpFile.value = '';
+  updateFpButtons();
+  if (state.hasResult) renderPlot();
+}
+function floorplanActive() {
+  const fp = state.floorplan;
+  return !!(fp.dataUrl && fp.w > 0 && fp.h > 0);
+}
+function updateFpButtons() {
+  const can = !!state.floorplan.dataUrl;
+  els.btnFpRemove.disabled = !can;
+  els.btnFpReset.disabled = !can;
+  els.btnFpAdjust.disabled = !(can && state.hasResult);
+}
+
+/* ---- plot pixel <-> data mapping ---- */
+function plotAxes() {
+  const fl = els.plot._fullLayout;
+  if (!fl || !fl.xaxis || !fl.xaxis._length) return null;
+  return { xa: fl.xaxis, ya: fl.yaxis };
+}
+function dataToPx(x, y) {
+  const A = plotAxes();
+  if (!A) return null;
+  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
+  return [
+    A.xa._offset + ((x - x0) / (x1 - x0)) * A.xa._length,
+    A.ya._offset + ((y1 - y) / (y1 - y0)) * A.ya._length,
+  ];
+}
+function pxToData(clientX, clientY) {
+  const A = plotAxes();
+  if (!A) return null;
+  const rect = els.plot.getBoundingClientRect();
+  const lx = clientX - rect.left, ly = clientY - rect.top;
+  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
+  return [
+    x0 + ((lx - A.xa._offset) / A.xa._length) * (x1 - x0),
+    y1 - ((ly - A.ya._offset) / A.ya._length) * (y1 - y0),
+  ];
+}
+function pxPerUnit() {
+  const A = plotAxes();
+  if (!A) return null;
+  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
+  return [A.xa._length / (x1 - x0), A.ya._length / (y1 - y0)];
+}
+
+/* ---- on-plot floor plan editor ---- */
+function syncFpEditor() {
+  if (!fpEditorOn) return;
+  const fp = state.floorplan;
+  const tl = dataToPx(fp.x0, fp.y0 + fp.h);
+  const br = dataToPx(fp.x0 + fp.w, fp.y0);
+  if (!tl || !br) return;
+  const ed = els.fpEditor;
+  ed.style.left = tl[0] + 'px';
+  ed.style.top = tl[1] + 'px';
+  ed.style.width = Math.max(8, br[0] - tl[0]) + 'px';
+  ed.style.height = Math.max(8, br[1] - tl[1]) + 'px';
+  els.fpEditorLabel.textContent =
+    `${fp.w.toFixed(1)} × ${fp.h.toFixed(1)} m @ (${fp.x0.toFixed(1)}, ${fp.y0.toFixed(1)})`;
+}
+function setFpEditor(on) {
+  fpEditorOn = !!(on && state.floorplan.dataUrl && state.hasResult);
+  els.fpEditor.classList.toggle('hidden', !fpEditorOn);
+  els.btnFpAdjustLabel.textContent = fpEditorOn ? t('fp_adjust_done') : t('fp_adjust');
+  els.btnFpAdjust.classList.toggle('!bg-sky-700', fpEditorOn);
+  els.btnFpAdjust.classList.toggle('!text-white', fpEditorOn);
+  els.btnFpAdjust.classList.toggle('!border-sky-700', fpEditorOn);
+  els.noteFpedit.textContent = 'ⓘ ' + t('fp_edit_chip');
+  els.noteFpedit.classList.toggle('hidden', !fpEditorOn);
+  if (fpEditorOn) syncFpEditor();
+}
+let fpDrag = null;
+let fpRaf = 0;
+function requestFpRelayout() {
+  syncFpEditor();
+  if (fpRaf) return;
+  fpRaf = requestAnimationFrame(() => {
+    fpRaf = 0;
+    const fp = state.floorplan;
+    if (state.hasResult && fp.dataUrl) {
+      Plotly.relayout(els.plot, {
+        'images[0].x': fp.x0,
+        'images[0].y': fp.y0 + fp.h,
+        'images[0].sizex': fp.w,
+        'images[0].sizey': fp.h,
+      });
+    }
+  });
+}
+els.fpEditor.addEventListener('pointerdown', (e) => {
+  const handle = e.target.closest('.fp-handle');
+  fpDrag = {
+    mode: handle ? handle.dataset.dir : 'move',
+    sx: e.clientX, sy: e.clientY,
+    orig: { ...state.floorplan },
+  };
+  els.fpEditor.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+els.fpEditor.addEventListener('pointermove', (e) => {
+  if (!fpDrag) return;
+  const ppu = pxPerUnit();
+  if (!ppu) return;
+  const dx = (e.clientX - fpDrag.sx) / ppu[0];
+  const dy = -(e.clientY - fpDrag.sy) / ppu[1]; // screen down = data y down
+  const o = fpDrag.orig, fp = state.floorplan, MIN = 0.5;
+  if (fpDrag.mode === 'move') {
+    fp.x0 = o.x0 + dx;
+    fp.y0 = o.y0 + dy;
+  } else {
+    if (fpDrag.mode.includes('w')) {
+      const nx0 = Math.min(o.x0 + dx, o.x0 + o.w - MIN);
+      fp.w = o.w + (o.x0 - nx0); fp.x0 = nx0;
+    }
+    if (fpDrag.mode.includes('e')) fp.w = Math.max(MIN, o.w + dx);
+    if (fpDrag.mode.includes('s')) {
+      const ny0 = Math.min(o.y0 + dy, o.y0 + o.h - MIN);
+      fp.h = o.h + (o.y0 - ny0); fp.y0 = ny0;
+    }
+    if (fpDrag.mode.includes('n')) fp.h = Math.max(MIN, o.h + dy);
+  }
+  fp.custom = true;
+  requestFpRelayout();
+});
+['pointerup', 'pointercancel'].forEach((ev) => els.fpEditor.addEventListener(ev, () => { fpDrag = null; }));
+
+/* ================= Banner & notes ================= */
+let bannerTimer = null;
+const BANNER_STYLES = {
+  error: ['border-red-200', 'bg-red-50', 'text-red-700'],
+  warn: ['border-amber-200', 'bg-amber-50', 'text-amber-800'],
+  info: ['border-sky-200', 'bg-sky-50', 'text-sky-800'],
+};
+function showBanner(msg, kind = 'error', autoHideMs = 0) {
+  const b = els.banner;
+  b.classList.remove('hidden', ...Object.values(BANNER_STYLES).flat());
+  b.classList.add('flex', ...BANNER_STYLES[kind]);
+  els.bannerMsg.textContent = msg;
+  clearTimeout(bannerTimer);
+  if (autoHideMs) bannerTimer = setTimeout(hideBanner, autoHideMs);
+}
+function hideBanner() {
+  els.banner.classList.add('hidden');
+  els.banner.classList.remove('flex');
+}
+function updateNotes() {
+  const res = state.lastResult;
+  const showKriging = state.pyReady && !state.pykrige && state.method === 'kriging';
+  els.noteKriging.textContent = 'ⓘ ' + t('kriging_note');
+  els.noteKriging.classList.toggle('hidden', !showKriging);
+  const showSpline = !!(res && res.note === 'rbf_fallback' && state.method === 'spline');
+  els.noteSpline.textContent = 'ⓘ ' + t('spline_note');
+  els.noteSpline.classList.toggle('hidden', !showSpline);
+  const oel = parseFloat(els.oelInput.value);
+  const showOel = state.hasResult && isFinite(oel) && oel > 0;
+  els.oelCaption.textContent = '⬤ ' + t('oel_caption');
+  els.oelCaption.classList.toggle('hidden', !showOel);
+}
+function updatePyStatus() {
+  const dot = els.pyStatus, txt = els.pyStatusText;
+  if (state.pyReady) {
+    dot.className = 'h-2.5 w-2.5 rounded-full bg-emerald-500';
+    txt.textContent = t('status_ready');
+  } else if (state.failedPackages.includes('numpy') || state.loadFailed) {
+    dot.className = 'h-2.5 w-2.5 rounded-full bg-red-500';
+    txt.textContent = t('status_failed');
+  } else {
+    dot.className = 'h-2.5 w-2.5 animate-pulse rounded-full bg-amber-400';
+    txt.textContent = t('status_loading');
+  }
+}
+
+/* ================= Compute ================= */
+function scheduleRecompute(delay = 600) {
+  // No "Generate" button — any valid input (incl. the first dataset) auto-computes.
+  if (!state.pyReady) return;
+  clearTimeout(recomputeTimer);
+  recomputeTimer = setTimeout(() => {
+    if (validPoints().length >= 4 && !state.busy) compute();
+  }, delay);
+}
+function setBusy(on) {
+  state.busy = on;
+  els.plotBusy.classList.toggle('hidden', !on);
+  els.plotBusy.classList.toggle('flex', on);
+  updateStatus();
+}
+async function compute() {
+  if (!state.pyReady || !pyInterpolate) {
+    showBanner(`${t('err_not_ready')} / ${I18N[state.lang === 'zh' ? 'en' : 'zh'].err_not_ready}`, 'warn');
+    return;
+  }
+  const pts = validPoints();
+  if (pts.length < 4 || state.busy) return;
+  setBusy(true);
+  await new Promise((r) => setTimeout(r, 40)); // let the busy overlay paint before blocking on WASM
+  try {
+    const fd = fieldDims();
+    const bounds = fd ? JSON.stringify([0, fd[0], 0, fd[1]]) : '';
+    const out = pyInterpolate(JSON.stringify(pts), state.method, state.gridN, state.power, bounds);
+    const res = JSON.parse(out);
+    if (res.error) {
+      showBanner(res.error, 'error');
+      return;
+    }
+    state.lastResult = res;
+    state.hasResult = true;
+    hideBanner();
+    els.plotEmpty.classList.add('hidden');
+    els.btnPng.disabled = false;
+    els.btnCsvDl.disabled = false;
+    renderPlot();
+    updateNotes();
+    updateFpButtons();
+    els.gridInfo.textContent = `${res.grid_z[0].length} × ${res.grid_z.length} grid · ${res.n_points} pts · ${res.method_used}`;
+    if (window.innerWidth < 768) els.sidebar.classList.remove('open');
+  } catch (err) {
+    console.error(err);
+    const msg = String((err && err.message) || err).split('\n').slice(-4).join(' ').slice(0, 400);
+    showBanner(`插值計算失敗 / Interpolation failed: ${msg}`, 'error');
+  } finally {
+    setBusy(false);
+  }
+}
+
+/* ================= Plot ================= */
+let plotListenersAttached = false;
+function formatLabel(c) {
+  if (Math.abs(c) >= 100) return String(Math.round(c));
+  if (Math.abs(c) >= 10) return String(Math.round(c * 10) / 10);
+  return String(Math.round(c * 100) / 100);
+}
+function renderPlot() {
+  const res = state.lastResult;
+  if (!res) return;
+  const gx = res.grid_x[0];
+  const gy = res.grid_y.map((row) => row[0]);
+  const cs = COLORSCALES[state.colorscale] || COLORSCALES.Viridis;
+  const fp = state.floorplan;
+  const hasFp = floorplanActive();
+  const unit = (els.unitInput.value || '').replace(/[<>]/g, '').trim();
+  const chart = state.chart;
+  const mainOpacity = chart.contourOpacity / 100;
+  const colorbar = {
+    title: { text: unit, side: 'top', font: { size: 11, color: '#475569' } },
+    thickness: 14, len: 0.92, outlinewidth: 0, tickfont: { size: 10, color: '#475569' },
+  };
+  const hover = `X: %{x:.2f} m<br>Y: %{y:.2f} m<br>%{z:.4g} ${unit}<extra></extra>`;
+  const traces = [];
+
+  traces.push({
+    type: 'contour', x: gx, y: gy, z: res.grid_z,
+    colorscale: cs.scale, reversescale: !!cs.reverse, opacity: mainOpacity,
+    contours: {
+      coloring: 'fill', showlines: true, showlabels: true,
+      labelfont: { size: Math.max(7, chart.fontSize - 1), color: chart.fontColor },
+    },
+    line: { color: 'rgba(15,23,42,0.35)', width: 0.7, smoothing: 1 },
+    colorbar, hovertemplate: hover,
+  });
+
+  const oel = parseFloat(els.oelInput.value);
+  if (isFinite(oel) && oel > 0) {
+    traces.push({
+      type: 'contour', x: gx, y: gy, z: res.grid_z,
+      showscale: false, hoverinfo: 'skip', name: 'OEL',
+      opacity: mainOpacity, // OEL line + red fill fade with the contour layer
+      // Plotly shades the region that VIOLATES the constraint, so "< oel"
+      // shades where z >= oel — the exceedance zone.
+      contours: { type: 'constraint', operation: '<', value: oel, showlines: true },
+      fillcolor: 'rgba(220,38,38,0.30)',
+      line: { color: '#b91c1c', width: 3 },
+    });
+  }
+
+  const vp = validPoints();
+  traces.push({
+    type: 'scatter', mode: 'markers+text',
+    x: vp.map((p) => p.x), y: vp.map((p) => p.y),
+    text: vp.map((p) => formatLabel(p.c)),
+    textposition: 'top center',
+    textfont: { size: chart.fontSize, color: chart.fontColor },
+    marker: { color: '#0f172a', size: chart.markerSize, line: { color: '#ffffff', width: 1.5 } },
+    opacity: mainOpacity, // point markers + concentration labels fade with the contour layer
+    hovertemplate: `(%{x}, %{y})<br>%{text} ${unit}<extra></extra>`,
+    cliponaxis: false,
+  });
+
+  const xr = [res.x_range[0], res.x_range[1]];
+  const yr = [res.y_range[0], res.y_range[1]];
+  const padX = (xr[1] - xr[0]) * 0.02, padY = (yr[1] - yr[0]) * 0.02;
+  fullRange = { x: [xr[0] - padX, xr[1] + padX], y: [yr[0] - padY, yr[1] + padY] };
+
+  const layout = {
+    title: { text: els.titleInput.value || '', font: { size: 16, color: '#0f172a' }, x: 0.5, xanchor: 'center' },
+    xaxis: {
+      title: { text: 'X (m)', font: { size: 12, color: '#475569' } },
+      range: fullRange.x.slice(), constrain: 'domain',
+      zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
+    },
+    yaxis: {
+      title: { text: 'Y (m)', font: { size: 12, color: '#475569' } },
+      range: fullRange.y.slice(),
+      scaleanchor: 'x', scaleratio: 1, constrain: 'domain',
+      zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
+    },
+    margin: { l: 56, r: 10, t: 46, b: 46 },
+    paper_bgcolor: 'rgba(0,0,0,0)',
+    plot_bgcolor: '#ffffff',
+    showlegend: false,
+    hovermode: 'closest',
+    dragmode: 'pan',
+    uirevision: res.x_range.join(',') + '|' + res.y_range.join(','),
+    images: hasFp ? [{
+      source: fp.dataUrl, xref: 'x', yref: 'y',
+      x: fp.x0, y: fp.y0 + fp.h, sizex: fp.w, sizey: fp.h,
+      sizing: 'stretch', opacity: fp.opacity / 100, layer: 'below',
+    }] : [],
+  };
+  Plotly.react(els.plot, traces, layout, {
+    responsive: true, displaylogo: false, scrollZoom: false, doubleClick: false,
+    modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
+  }).then(() => {
+    if (!plotListenersAttached && els.plot.on) {
+      plotListenersAttached = true;
+      els.plot.on('plotly_relayout', () => syncFpEditor());
+      els.plot.on('plotly_afterplot', () => syncFpEditor());
+    }
+    syncFpEditor();
+  });
+}
+/* gentle, cursor-centered wheel zoom (Plotly's default scroll step is too coarse) */
+function smoothWheelZoom(e) {
+  if (!state.hasResult) return;
+  const A = plotAxes();
+  if (!A) return;
+  const p = pxToData(e.clientX, e.clientY);
+  if (!p) return;
+  e.preventDefault();
+  let f = Math.exp(e.deltaY * 0.0012);
+  f = Math.min(1.3, Math.max(0.77, f)); // clamp per-event so trackpads/mice feel continuous
+  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
+  Plotly.relayout(els.plot, {
+    'xaxis.range': [p[0] - (p[0] - x0) * f, p[0] + (x1 - p[0]) * f],
+    'yaxis.range': [p[1] - (p[1] - y0) * f, p[1] + (y1 - p[1]) * f],
+  });
+}
+
+/* ================= Export ================= */
+function slugTitle() {
+  const s = (els.titleInput.value || 'contour').replace(/[\\/:*?"<>|]/g, '').trim();
+  return s || 'contour';
+}
+function downloadPng() {
+  if (!state.hasResult) return;
+  Plotly.downloadImage(els.plot, { format: 'png', width: 1600, height: 1000, scale: 2, filename: slugTitle() });
+}
+function downloadGridCsv() {
+  const res = state.lastResult;
+  if (!res) return;
+  const unit = (els.unitInput.value || 'value').replace(/[",\s]/g, '') || 'value';
+  const lines = [`x_m,y_m,c_${unit}`];
+  const { grid_x, grid_y, grid_z } = res;
+  for (let i = 0; i < grid_z.length; i++) {
+    for (let j = 0; j < grid_z[i].length; j++) {
+      lines.push(`${grid_x[i][j]},${grid_y[i][j]},${grid_z[i][j] ?? ''}`);
+    }
+  }
+  const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = slugTitle() + '_grid.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+
+/* ================= Color scale swatches ================= */
+function buildSwatches() {
+  els.colorscaleSwatches.innerHTML = '';
+  Object.keys(COLORSCALES).forEach((name) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'swatch' + (state.colorscale === name ? ' selected' : '');
+    b.dataset.cs = name;
+    b.title = name;
+    b.style.background = `linear-gradient(to right, ${SWATCH_GRADIENTS[name].join(', ')})`;
+    els.colorscaleSwatches.appendChild(b);
+  });
+  els.colorscaleName.textContent = state.colorscale;
+}
+els.colorscaleSwatches.addEventListener('click', (e) => {
+  const b = e.target.closest('.swatch');
+  if (!b) return;
+  state.colorscale = b.dataset.cs;
+  els.colorscaleSwatches.querySelectorAll('.swatch').forEach((s) => s.classList.toggle('selected', s === b));
+  els.colorscaleName.textContent = state.colorscale;
+  if (state.hasResult) renderPlot();
+});
+
+/* ================= Modals ================= */
+function openModal(m) { m.classList.remove('hidden'); m.classList.add('flex'); }
+function closeModal(m) { m.classList.add('hidden'); m.classList.remove('flex'); }
+els.modalAbout.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) closeModal(els.modalAbout); });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(els.modalAbout); });
+els.navAbout.addEventListener('click', () => openModal(els.modalAbout));
+els.discMore.addEventListener('click', () => openModal(els.modalAbout));
+
+/* ================= Width-resize handle (desktop) ================= */
+(function widthResize() {
+  const handle = els.resizeHandle, sb = els.sidebar;
+  let drag = null, raf = 0;
+  const reflow = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (state.hasResult) Plotly.Plots.resize(els.plot); }); };
+  handle.addEventListener('pointerdown', (e) => {
+    if (window.innerWidth < 768) return;
+    drag = { sx: e.clientX, ow: sb.getBoundingClientRect().width };
+    handle.classList.add('active');
+    handle.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  handle.addEventListener('pointermove', (e) => {
+    if (!drag) return;
+    const w = Math.max(288, Math.min(680, drag.ow + (e.clientX - drag.sx)));
+    sb.style.width = w + 'px';
+    reflow();
+  });
+  ['pointerup', 'pointercancel'].forEach((ev) => handle.addEventListener(ev, () => {
+    if (!drag) return;
+    drag = null;
+    handle.classList.remove('active');
+    document.body.style.userSelect = '';
+    if (state.hasResult) Plotly.Plots.resize(els.plot);
+  }));
+})();
+
+/* ================= Loading / Pyodide init ================= */
+let progress = 2;
+let creepTimer = null;
+function setProgress(p) {
+  progress = Math.max(progress, Math.min(100, p));
+  els.loadBar.style.width = progress + '%';
+  els.loadPct.textContent = Math.round(progress) + '%';
+}
+function creepTo(cap) {
+  clearInterval(creepTimer);
+  creepTimer = setInterval(() => {
+    if (progress < cap) setProgress(progress + Math.max(0.12, (cap - progress) * 0.018));
+  }, 160);
+}
+function setLoadMsg(key) {
+  const m = LOAD_MSG[key];
+  els.loadMsg.textContent = `${m[0]} / ${m[1]}`;
+}
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
+  ]);
+}
+function finishLoading() {
+  clearInterval(creepTimer);
+  setProgress(100);
+  setLoadMsg('ready');
+  updatePyStatus();
+  updateStatus();
+  rebuildMethodOptions();
+  updateMethodHelp();
+  setTimeout(() => {
+    els.loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+    setTimeout(() => els.loadingOverlay.remove(), 600);
+  }, 450);
+  if (state.failedPackages.length) {
+    const off = [], on = [];
+    METHODS.forEach((m) => (methodAvailable(m) ? on : off).push(methodLabel(m)));
+    showBanner(
+      `${t('pkg_fail')}${state.failedPackages.join(', ')}。${t('pkg_methods_off')}${off.join('、') || '–'}；${t('pkg_ok_methods')}${on.join('、')}`,
+      'warn'
+    );
+  }
+  // user already loaded data while waiting → compute right away
+  if (validPoints().length >= 4 && !state.hasResult) compute();
+}
+function loadFailed(err) {
+  console.error('Pyodide init failed:', err);
+  clearInterval(creepTimer);
+  state.loadFailed = true;
+  updatePyStatus();
+  els.loadError.classList.remove('hidden');
+  els.loadErrorMsg.textContent = `${I18N.zh.load_err} / ${I18N.en.load_err}`;
+}
+async function initPyodide() {
+  try {
+    setLoadMsg('stage1');
+    creepTo(34);
+    pyodideInstance = await loadPyodide({ indexURL: PYODIDE_INDEX_URL });
+    setProgress(36);
+    setLoadMsg('stage2');
+    creepTo(70);
+    const failed = [];
+    try { await pyodideInstance.loadPackage('numpy'); } catch (e) { console.error(e); failed.push('numpy'); }
+    setProgress(Math.max(progress, 48));
+    try { await pyodideInstance.loadPackage('scipy'); } catch (e) { console.error(e); failed.push('scipy'); }
+    setProgress(Math.max(progress, 64));
+    try { await pyodideInstance.loadPackage('pandas'); } catch (e) { console.error(e); failed.push('pandas'); }
+    state.failedPackages = failed;
+    if (failed.includes('numpy')) throw new Error('numpy failed to load');
+    setProgress(72);
+    setLoadMsg('stage3');
+    creepTo(86);
+    try {
+      await pyodideInstance.loadPackage('micropip');
+      await withTimeout(
+        pyodideInstance.runPythonAsync('import micropip\nawait micropip.install("pykrige")'),
+        25000
+      );
+    } catch (e) {
+      console.warn('pykrige unavailable, basic Ordinary Kriging fallback will be used:', String(e).slice(0, 300));
+    }
+    setProgress(88);
+    setLoadMsg('stage4');
+    creepTo(97);
+    const pySrc = document.getElementById('py-src').textContent;
+    pyodideInstance.runPython(pySrc);
+    pyInterpolate = pyodideInstance.globals.get('interpolate');
+    const riProxy = pyodideInstance.globals.get('runtime_info');
+    const info = JSON.parse(riProxy());
+    riProxy.destroy();
+    state.scipyOK = info.scipy;
+    state.pykrige = info.pykrige;
+    // warm-up call so the first real computation is snappy
+    try {
+      pyInterpolate(JSON.stringify(SAMPLE_DATA.slice(0, 6)), state.scipyOK ? 'linear' : 'idw', 12, 2, '');
+    } catch (e) { console.warn('warmup failed', e); }
+    state.pyReady = true;
+    finishLoading();
+  } catch (err) {
+    loadFailed(err);
+  }
+}
+
+/* ================= Events ================= */
+els.btnAddRow.addEventListener('click', () => {
+  state.points.push(makeRow());
+  renderTable();
+  updateStatus();
+  const inputs = els.tableBody.querySelectorAll('tr:last-child input');
+  if (inputs.length) inputs[0].focus();
+});
+els.btnSample.addEventListener('click', loadSample);
+els.btnEmptySample.addEventListener('click', loadSample);
+function loadSample() {
+  state.points = SAMPLE_DATA.map(makeRow);
+  els.oelInput.value = SAMPLE_OEL;
+  els.fieldW.value = SAMPLE_FIELD[0];
+  els.fieldH.value = SAMPLE_FIELD[1];
+  if (!state.floorplan.custom) fpResetRect();
+  renderTable();
+  updateStatus();
+  hideBanner();
+  if (state.pyReady) compute();
+}
+els.btnUploadCsv.addEventListener('click', () => els.csvFile.click());
+els.csvFile.addEventListener('change', () => {
+  if (els.csvFile.files[0]) handleCsvFile(els.csvFile.files[0]);
+  els.csvFile.value = '';
+});
+[els.fieldW, els.fieldH].forEach((el) => el.addEventListener('input', () => {
+  if (!state.floorplan.custom) fpResetRect();
+  updateStatus();
+  scheduleRecompute(900);
+}));
+els.methodSelect.addEventListener('change', () => {
+  state.method = els.methodSelect.value;
+  updateMethodHelp();
+  updateNotes();
+  scheduleRecompute(120);
+});
+els.powerSlider.addEventListener('input', () => {
+  state.power = parseFloat(els.powerSlider.value);
+  els.powerVal.textContent = state.power.toFixed(1);
+  scheduleRecompute(450);
+});
+els.gridSlider.addEventListener('input', () => {
+  state.gridN = parseInt(els.gridSlider.value, 10);
+  els.gridVal.textContent = state.gridN;
+  els.gridVal2.textContent = state.gridN;
+  scheduleRecompute(450);
+});
+els.unitInput.addEventListener('input', () => { if (state.hasResult) renderPlot(); });
+els.titleInput.addEventListener('input', () => { if (state.hasResult) renderPlot(); });
+els.oelInput.addEventListener('input', () => {
+  updateNotes();
+  updateStatus(); // stats include the >OEL count
+  if (state.hasResult) renderPlot();
+});
+els.contourOpacity.addEventListener('input', () => {
+  state.chart.contourOpacity = parseInt(els.contourOpacity.value, 10);
+  els.contourOpacityVal.textContent = state.chart.contourOpacity + '%';
+  if (state.hasResult) renderPlot();
+});
+els.fontColor.addEventListener('input', () => {
+  state.chart.fontColor = els.fontColor.value;
+  if (state.hasResult) renderPlot();
+});
+els.fontSize.addEventListener('input', () => {
+  state.chart.fontSize = parseInt(els.fontSize.value, 10);
+  els.fontSizeVal.textContent = state.chart.fontSize;
+  if (state.hasResult) renderPlot();
+});
+els.markerSize.addEventListener('input', () => {
+  state.chart.markerSize = parseInt(els.markerSize.value, 10);
+  els.markerSizeVal.textContent = state.chart.markerSize;
+  if (state.hasResult) renderPlot();
+});
+els.btnFpUpload.addEventListener('click', () => els.fpFile.click());
+els.fpFile.addEventListener('change', () => {
+  if (els.fpFile.files[0]) handleFpFile(els.fpFile.files[0]);
+});
+els.btnFpRemove.addEventListener('click', removeFloorplan);
+els.btnFpAdjust.addEventListener('click', () => setFpEditor(!fpEditorOn));
+els.btnFpReset.addEventListener('click', () => {
+  fpResetRect();
+  if (state.hasResult) renderPlot();
+  syncFpEditor();
+});
+els.fpOpacity.addEventListener('input', () => {
+  state.floorplan.opacity = parseInt(els.fpOpacity.value, 10);
+  els.fpOpacityVal.textContent = state.floorplan.opacity + '%';
+  if (state.hasResult) renderPlot();
+});
+els.btnPng.addEventListener('click', downloadPng);
+els.btnCsvDl.addEventListener('click', downloadGridCsv);
+els.bannerClose.addEventListener('click', hideBanner);
+els.langToggle.addEventListener('click', () => {
+  state.lang = state.lang === 'zh' ? 'en' : 'zh';
+  applyI18n();
+});
+els.sheetHandle.addEventListener('click', () => {
+  const open = els.sidebar.classList.toggle('open');
+  els.sheetChevron.style.transform = open ? 'rotate(180deg)' : '';
+});
+els.btnRetry.addEventListener('click', () => location.reload());
+els.btnContinue.addEventListener('click', () => {
+  els.loadingOverlay.classList.add('opacity-0', 'pointer-events-none');
+  setTimeout(() => els.loadingOverlay.remove(), 600);
+  showBanner(`${I18N.zh.load_err} / ${I18N.en.load_err}`, 'error');
+});
+els.plot.addEventListener('wheel', smoothWheelZoom, { passive: false });
+// Plotly's own double-click reset is disabled (doubleClick:false) so it doesn't
+// autorange to the data bbox — reset to the full field extent ourselves instead.
+els.plot.addEventListener('dblclick', () => {
+  if (state.hasResult && fullRange) {
+    Plotly.relayout(els.plot, { 'xaxis.range': fullRange.x.slice(), 'yaxis.range': fullRange.y.slice() });
+  }
+});
+let resizeTimer = null;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (state.hasResult) Plotly.Plots.resize(els.plot);
+    syncFpEditor();
+  }, 200);
+});
+
+/* ================= Boot ================= */
+state.points = [makeRow(), makeRow(), makeRow(), makeRow()];
+renderTable();
+buildSwatches();
+applyI18n();
+initPyodide();
+</script>
+</body>
+</html>
