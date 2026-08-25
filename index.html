@@ -7,7 +7,8 @@
 <link rel="icon" type="image/svg+xml" href="logo.svg">
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
 <script src="https://cdn.jsdelivr.net/pyodide/v0.29.4/full/pyodide.js"></script>
 <style>
   html, body { height: 100%; }
@@ -168,8 +169,14 @@
     </div>
     <div id="sidebar-scroll" class="h-full flex-1 overflow-y-auto px-4 pb-4 md:pt-3">
 
-      <!-- ---- Field size ---- -->
+      <!-- ---- Map title ---- -->
       <section class="pt-2 md:pt-0">
+        <label class="side-label" for="title-input" data-i18n="lbl_title">圖表標題</label>
+        <input type="text" id="title-input" class="side-input" value="作業場所濃度分佈圖">
+      </section>
+
+      <!-- ---- Field size ---- -->
+      <section class="mt-5 border-t border-slate-100 pt-4">
         <h2 class="section-title">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h3M3 15h3M21 9h-3M21 15h-3M9 5v3M15 5v3M9 19v-3M15 19v-3"/></svg>
           <span data-i18n="sec_field">場域尺寸</span>
@@ -205,7 +212,27 @@
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21V9m0 0-4 4m4-4 4 4"/><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg>
             <span data-i18n="btn_upload_csv">上傳 CSV</span>
           </button>
+          <button type="button" id="btn-upload-xlsx" class="btn-secondary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 21V9m0 0-4 4m4-4 4 4"/><path d="M4 7V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v2"/></svg>
+            <span data-i18n="btn_upload_xlsx">上傳標準資料表</span>
+          </button>
+          <button type="button" id="btn-export-xlsx" class="btn-secondary">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
+            <span data-i18n="btn_export_xlsx">匯出標準資料表</span>
+          </button>
           <input type="file" id="csv-file" accept=".csv,text/csv" class="hidden">
+          <input type="file" id="xlsx-file" accept=".xlsx,.xlsm" class="hidden">
+        </div>
+        <div id="repeat-row" class="mb-2 hidden rounded-lg border border-sky-100 bg-sky-50/60 px-2.5 py-2">
+          <label class="side-label" for="repeat-mode" data-i18n="lbl_repeat">重複量測之取值</label>
+          <select id="repeat-mode" class="side-input">
+            <option value="mean" data-i18n="rep_mean">平均（建議）</option>
+            <option value="1" data-i18n="rep_1">僅量測 1</option>
+            <option value="2" data-i18n="rep_2">僅量測 2</option>
+            <option value="3" data-i18n="rep_3">僅量測 3</option>
+            <option value="max" data-i18n="rep_max">最大值（保守）</option>
+          </select>
+          <p id="repeat-hint" class="mt-1 text-[10.5px] leading-snug text-slate-500"></p>
         </div>
         <div class="max-h-60 overflow-y-auto rounded-lg border border-slate-200">
           <table class="w-full border-collapse text-sm">
@@ -239,21 +266,28 @@
         </h2>
         <div class="space-y-3.5">
           <div>
-            <label class="side-label" for="method-select">
+            <label class="side-label">
               <span data-i18n="lbl_method">插值方法</span>
               <span id="method-tip" class="ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-500" title="">?</span>
             </label>
-            <select id="method-select" class="side-input"></select>
-            <p id="method-help" class="mt-1.5 text-[11px] leading-snug text-slate-500"></p>
+            <div class="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+              <div class="text-[12px] font-semibold text-slate-700" data-i18n="fixed_method">普通克利金（Ordinary Kriging）</div>
+              <div class="mt-1 font-mono text-[10.5px] leading-relaxed text-slate-500">
+                variogram = linear<br>slope = 1.0&nbsp;&nbsp;nugget = 0.0<br>anisotropy = 1.0
+              </div>
+            </div>
+            <p id="method-help" class="mt-1.5 text-[11px] leading-snug text-slate-500" data-i18n="fixed_method_note">固定參數，不由資料估計；金塊效應為零可避免濃度峰值被低估。</p>
+            <select id="method-select" class="hidden"></select>
           </div>
-          <div id="power-row">
+          <div id="power-row" class="hidden">
             <label class="side-label" for="power-slider"><span data-i18n="lbl_power">IDW 冪次 p</span>: <span id="power-val" class="font-mono text-sky-800">2.0</span></label>
             <input type="range" id="power-slider" min="1" max="4" step="0.1" value="2" class="w-full">
             <div class="flex justify-between text-[10px] text-slate-400"><span>1.0</span><span>4.0</span></div>
           </div>
           <div>
-            <label class="side-label" for="grid-slider"><span data-i18n="lbl_grid">網格解析度</span>: <span id="grid-val" class="font-mono text-sky-800">100</span> × <span id="grid-val2" class="font-mono text-sky-800">100</span></label>
-            <input type="range" id="grid-slider" min="50" max="200" step="50" value="100" class="w-full">
+            <label class="side-label" for="grid-slider"><span data-i18n="lbl_grid">網格解析度</span>: <span id="grid-val" class="font-mono text-sky-800">120</span> × <span id="grid-val2" class="font-mono text-sky-800">120</span>　<span id="grid-cell" class="font-mono text-slate-400"></span></label>
+            <input type="range" id="grid-slider" min="40" max="400" step="20" value="120" class="w-full">
+            <p class="mt-0.5 text-[10.5px] leading-snug text-slate-400" data-i18n="grid_hint">網格依場域長寬比配置，格點為正方形；數值為長邊之格數。</p>
             <div class="flex justify-between text-[10px] text-slate-400"><span>50</span><span>100</span><span>150</span><span>200</span></div>
           </div>
           <div class="grid grid-cols-2 gap-2.5">
@@ -277,11 +311,7 @@
         </h2>
         <div class="space-y-3.5">
           <div>
-            <label class="side-label" for="title-input" data-i18n="lbl_title">圖表標題</label>
-            <input type="text" id="title-input" class="side-input" value="作業場所濃度分佈圖">
-          </div>
-          <div>
-            <label class="side-label"><span data-i18n="lbl_colorscale">色階</span>: <span id="colorscale-name" class="font-mono text-sky-800">Viridis</span></label>
+            <label class="side-label"><span data-i18n="lbl_colorscale">色階</span>: <span id="colorscale-name" class="font-mono text-sky-800">Jet</span></label>
             <div id="colorscale-swatches" class="flex gap-1.5"></div>
           </div>
           <div>
@@ -289,6 +319,10 @@
             <input type="range" id="contour-opacity" min="20" max="100" step="5" value="100" class="w-full">
             <p class="mt-0.5 text-[10.5px] leading-snug text-slate-400" data-i18n="contour_opacity_hint">疊加平面圖時可調低此值，使底圖更清楚。</p>
           </div>
+          <label class="flex cursor-pointer items-center gap-2 text-[12.5px] text-slate-700">
+            <input type="checkbox" id="show-labels" checked class="h-4 w-4 cursor-pointer accent-sky-700">
+            <span data-i18n="lbl_show_labels">於圖上顯示各測點濃度值</span>
+          </label>
           <div class="grid grid-cols-3 gap-2.5">
             <div>
               <label class="side-label" for="font-color" data-i18n="lbl_font_color">標註字色</label>
@@ -392,6 +426,10 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4"/><path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>
         <span data-i18n="btn_csv">下載網格 CSV</span>
       </button>
+      <button type="button" id="btn-rotate" class="btn-secondary" disabled>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M21 12a9 9 0 1 1-3.2-6.9"/><path d="M21 3v5h-5"/></svg>
+        <span data-i18n="btn_rotate">旋轉 90°</span><span id="rotate-val" class="font-mono text-sky-800"></span>
+      </button>
       <span id="grid-info" class="ml-auto text-[11px] text-slate-400"></span>
     </div>
 
@@ -420,14 +458,17 @@
     <div class="modal-zh space-y-4 text-[13.5px] leading-relaxed text-slate-700">
       <h3 class="text-lg font-bold text-sky-900">關於我們</h3>
       <p>本工具用於將作業場所危害性化學品之定點測量結果，繪製為濃度空間分佈圖（等值線圖），協助職業衛生人員辨識高暴露熱區、規劃採樣與改善通風配置，並作為風險溝通之輔助工具。</p>
-      <p><b>隱私與資料安全</b>：所有運算（含插值與統計）皆透過 WebAssembly 技術（Pyodide＋numpy／scipy）於您的瀏覽器內完成；輸入之測量資料與平面圖<b>不會上傳</b>至任何伺服器，本工具亦不蒐集、儲存任何資料。</p>
-      <p><b>技術架構</b>：Pyodide（瀏覽器內 Python）、numpy／scipy（數值運算與插值）、Plotly.js（圖表渲染）。原始碼為單一 HTML 檔案，可部署於任何靜態網頁空間。</p>
-      <p class="text-slate-500">版本：v1.2.0（2026 年 6 月）。詳細操作請參閱「使用說明」頁。開發單位與聯絡資訊請洽系統管理者。</p>
+      <p><b>隱私與資料安全</b>：所有運算（含插值與統計）皆透過 WebAssembly 技術（Pyodide＋numpy）於您的瀏覽器內完成；輸入之測量資料與平面圖<b>不會上傳</b>至任何伺服器，本工具亦不蒐集、儲存任何資料。</p>
+      <p><b>插值方法</b>：本工具一律採用普通克利金法（ordinary kriging），變異函數固定為線性、斜率 1、金塊效應 0、異方性比 1，不提供其他插值方法選項。此為本研究於 10 組文獻資料集與 15 組實測資料比較後所採之設定：該設定不需由資料估計任何參數，測點數少時仍可穩定求解；金塊效應為零使克利金曲面於測點處連續，不致系統性低估濃度峰值。</p>
+      <p><b>技術架構</b>：Pyodide（瀏覽器內 Python）、numpy（數值運算與克利金求解）、SheetJS（標準資料表讀寫）、Plotly.js（圖表渲染）。原始碼為單一 HTML 檔案，可部署於任何靜態網頁空間。</p>
+      <p class="text-slate-500">詳細操作請參閱「使用說明」頁。開發單位與聯絡資訊請洽系統管理者。</p>
       <h4 class="font-bold text-sky-900">免責聲明</h4>
       <ol class="list-decimal space-y-1.5 pl-5 text-[13px]">
-        <li>本工具之插值結果為基於有限測點之數學估計，僅供作業環境危害分佈之視覺化參考。</li>
+        <li>本工具之插值結果為基於有限測點之數學估計，僅供作業環境危害分布之視覺化參考，不得作為法定作業環境監測之替代。</li>
         <li>插值圖不得作為法規遵循判定、暴露合規評估或健康風險評估之唯一依據；正式評估應依相關法規之採樣策略與分析方法辦理。</li>
-        <li>估計品質高度取決於輸入資料之數量、品質與空間分佈；測點涵蓋範圍外之外插結果不確定性較高，應謹慎解讀。</li>
+        <li>估計品質取決於測點間距與濃度場空間結構之相對關係。本研究之驗證結果顯示，測點間距超過濃度場空間相關距離之一半時，插值結果之可信度顯著下降；部分場域即使測點齊備，其插值結果仍不優於直接採用全場平均值。使用者應就圖面結果與現場實況相互對照，不宜僅依圖面判讀。</li>
+        <li>測點涵蓋範圍外之外插結果不確定性較高。圖面上未設測點之區域（如設備占據處、場域邊緣）之濃度係由數學外推而得，並非實測值，應謹慎解讀。</li>
+        <li>以熱點辨識為目的者應注意，濃度分布圖之峰值受插值平滑影響，通常低於實測最高值；濃度偏態愈大者低估愈明顯。判讀熱點高度時應以實測值標註為準。</li>
         <li>本工具按「現狀」提供，不對結果之正確性、完整性或特定用途之適用性提供任何明示或默示之擔保；使用本工具所生之任何直接或間接損失，開發者不負賠償責任。</li>
         <li>所有資料僅於使用者瀏覽器端處理；本工具不蒐集、傳輸或儲存任何輸入資料。</li>
       </ol>
@@ -435,14 +476,17 @@
     <div class="modal-en hidden space-y-4 text-[13.5px] leading-relaxed text-slate-700">
       <h3 class="text-lg font-bold text-sky-900">About</h3>
       <p>This tool turns point measurements of hazardous chemical concentrations in workplaces into spatial contour maps, helping occupational hygienists identify exposure hot spots, plan sampling, evaluate ventilation layouts, and communicate risks.</p>
-      <p><b>Privacy &amp; data safety</b>: all computation (interpolation and statistics) runs inside your browser via WebAssembly (Pyodide + numpy/scipy). Your measurement data and floor plans are <b>never uploaded</b> to any server, and the tool collects and stores nothing.</p>
-      <p><b>Technology</b>: Pyodide (Python in the browser), numpy/scipy (numerical computing and interpolation), and Plotly.js (rendering). The source is a single HTML file deployable on any static hosting.</p>
-      <p class="text-slate-500">Version v1.2.0 (June 2026). See the "User Guide" page for detailed instructions. For development and contact information, please reach the site administrator.</p>
+      <p><b>Privacy &amp; data safety</b>: all computation (interpolation and statistics) runs inside your browser via WebAssembly (Pyodide + numpy). Your measurement data and floor plans are <b>never uploaded</b> to any server, and the tool collects and stores nothing.</p>
+      <p><b>Interpolation method</b>: the tool always uses ordinary kriging with a fixed linear variogram — slope 1, nugget 0, anisotropy 1. No other method is offered. This setting was adopted after comparing 10 literature datasets and 15 field datasets: nothing has to be estimated from the data, the solution stays stable with few points, and a zero nugget keeps the surface continuous at the measured points so the peak is not systematically flattened.</p>
+      <p><b>Technology</b>: Pyodide (Python in the browser), numpy (numerical computing and the kriging solver), SheetJS (standard data table I/O), and Plotly.js (rendering). The source is a single HTML file deployable on any static hosting.</p>
+      <p class="text-slate-500">See the "User Guide" page for detailed instructions. For development and contact information, please reach the site administrator.</p>
       <h4 class="font-bold text-sky-900">Disclaimer</h4>
       <ol class="list-decimal space-y-1.5 pl-5 text-[13px]">
-        <li>Interpolated surfaces are mathematical estimates from a limited number of points, provided solely as a visualization aid for workplace hazard distribution.</li>
+        <li>Interpolated surfaces are mathematical estimates from a limited number of points, provided solely as a visualization aid for the spatial distribution of workplace hazards, and are not a substitute for statutory workplace monitoring.</li>
         <li>The maps must not be used as the sole basis for regulatory compliance determinations, exposure assessments, or health risk assessments; formal evaluations must follow the sampling strategies and analytical methods required by applicable regulations.</li>
-        <li>Estimate quality depends strongly on the quantity, quality, and spatial coverage of the input data; extrapolation outside the measured area carries higher uncertainty and should be interpreted with caution.</li>
+        <li>Estimate quality depends on the spacing of the measured points relative to the spatial structure of the concentration field. Validation in this study showed that once the spacing exceeds half the spatial correlation distance the result becomes markedly less reliable, and that in some fields the interpolated surface is no better than simply using the field mean. Always check the map against conditions on site.</li>
+        <li>Areas without measured points — equipment footprints, field edges — are extrapolated rather than measured, and carry higher uncertainty.</li>
+        <li>For hotspot identification, note that the mapped peak is smoothed by interpolation and is normally lower than the highest measured value; the more skewed the concentration distribution, the greater the under-estimation. Label the measured peak on the figure.</li>
         <li>The tool is provided "as is" without warranties of any kind, express or implied, including accuracy, completeness, or fitness for a particular purpose; the developers accept no liability for losses arising from its use.</li>
         <li>All data is processed locally in your browser; nothing is collected, transmitted, or stored by this tool.</li>
       </ol>
@@ -461,23 +505,6 @@
 import json
 import math
 import numpy as np
-
-SCIPY_OK = True
-try:
-    from scipy.interpolate import (
-        LinearNDInterpolator,
-        NearestNDInterpolator,
-        RBFInterpolator,
-        RectBivariateSpline,
-    )
-except Exception:
-    SCIPY_OK = False
-
-PYKRIGE_OK = True
-try:
-    from pykrige.ok import OrdinaryKriging
-except Exception:
-    PYKRIGE_OK = False
 
 
 class InterpError(ValueError):
@@ -521,160 +548,18 @@ def _dedupe(x, y, z):
     return uniq[:, 0].astype(float), uniq[:, 1].astype(float), zsum / cnt
 
 
-# ---------------- IDW ----------------
-
-def _idw(x, y, z, GX, GY, power):
-    shape = GX.shape
-    gx = GX.ravel()
-    gy = GY.ravel()
-    n = gx.size
-    p = float(power)
-    out = np.empty(n)
-    chunk = max(64, int(2_000_000 // max(x.size, 1)))
-    for i in range(0, n, chunk):
-        dx = gx[i:i + chunk, None] - x[None, :]
-        dy = gy[i:i + chunk, None] - y[None, :]
-        d = np.sqrt(dx * dx + dy * dy)
-        coincident = d < 1e-10
-        d = np.maximum(d, 1e-12)
-        w = 1.0 / np.power(d, p)
-        val = (w @ z) / w.sum(axis=1)
-        hit = coincident.any(axis=1)
-        if hit.any():
-            idx = np.argmax(coincident, axis=1)
-            val[hit] = z[idx[hit]]
-        out[i:i + chunk] = val
-    return out.reshape(shape)
 
 
-# ---------------- Linear ----------------
-
-def _linear(x, y, z, GX, GY):
-    if not SCIPY_OK:
-        _fail("scipy 未載入，無法使用線性插值", "scipy not loaded; linear method unavailable")
-    pts = np.column_stack([x, y])
-    try:
-        li = LinearNDInterpolator(pts, z)
-        Z = li(GX, GY)
-    except Exception:
-        _fail(
-            "線性插值失敗：測點可能共線，無法建立三角網格",
-            "Linear interpolation failed: points may be collinear (triangulation failed)",
-        )
-    nan = ~np.isfinite(Z)
-    if nan.any():
-        ni = NearestNDInterpolator(pts, z)
-        Z[nan] = ni(GX[nan], GY[nan])
-    return Z
-
-
-# ---------------- RBF ----------------
-
-def _rbf(x, y, z, GX, GY):
-    if not SCIPY_OK:
-        _fail("scipy 未載入，無法使用 RBF", "scipy not loaded; RBF method unavailable")
-    sx = x.max() - x.min()
-    sy = y.max() - y.min()
-    sx = sx if sx > 1e-12 else 1.0
-    sy = sy if sy > 1e-12 else 1.0
-    P = np.column_stack([(x - x.min()) / sx, (y - y.min()) / sy])
-    G = np.column_stack([
-        (GX.ravel() - x.min()) / sx,
-        (GY.ravel() - y.min()) / sy,
-    ])
-    rbf = RBFInterpolator(P, z, kernel="thin_plate_spline", smoothing=0.0)
-    return rbf(G).reshape(GX.shape)
-
-
-# ---------------- Spline ----------------
-
-def _spline(x, y, z, GX, GY):
-    if not SCIPY_OK:
-        _fail("scipy 未載入，無法使用 Spline", "scipy not loaded; spline method unavailable")
-    n = x.size
-    if n < 16:
-        # Too few points for stable grid binning: fall back to RBF.
-        return _rbf(x, y, z, GX, GY), "rbf_fallback"
-    nb = int(min(12, max(4, math.floor(math.sqrt(n)))))
-    ex = np.linspace(x.min(), x.max(), nb + 1)
-    ey = np.linspace(y.min(), y.max(), nb + 1)
-    cx = 0.5 * (ex[:-1] + ex[1:])
-    cy = 0.5 * (ey[:-1] + ey[1:])
-    ix = np.clip(np.digitize(x, ex) - 1, 0, nb - 1)
-    iy = np.clip(np.digitize(y, ey) - 1, 0, nb - 1)
-    zsum = np.zeros((nb, nb))
-    cnt = np.zeros((nb, nb))
-    np.add.at(zsum, (ix, iy), z)
-    np.add.at(cnt, (ix, iy), 1.0)
-    B = np.zeros((nb, nb))
-    filled = cnt > 0
-    B[filled] = zsum[filled] / cnt[filled]
-    if (~filled).any():
-        # Estimate empty bins from the raw points (IDW, p=2).
-        CX, CY = np.meshgrid(cx, cy, indexing="ij")
-        B[~filled] = _idw(x, y, z, CX[~filled], CY[~filled], 2.0)
-    k = int(min(3, nb - 1))
-    spl = RectBivariateSpline(cx, cy, B, kx=k, ky=k)
-    gx = GX[0, :]
-    gy = GY[:, 0]
-    return spl(gx, gy).T, None
 
 
 # ---------------- Kriging ----------------
 
-def _spherical_shape(h, a):
-    r = np.clip(h / a, 0.0, None)
-    val = 1.5 * r - 0.5 * r ** 3
-    return np.where(h >= a, 1.0, val)
+def _gamma(h):
+    # Fixed variogram: linear, slope = 1, nugget = 0 (Surfer default).
+    # With nugget = 0 the kriging weights are independent of the slope value,
+    # so no parameter has to be estimated from the data.
+    return np.where(h < 1e-12, 0.0, h)
 
-
-def _gamma(h, nugget, psill, a):
-    g = nugget + psill * _spherical_shape(h, a)
-    return np.where(h < 1e-12, 0.0, g)
-
-
-def _variogram_params(x, y, z):
-    # Experimental semivariogram: gamma(h) = mean of 0.5*(zi - zj)^2 per lag bin,
-    # then fit nugget + partial sill of a spherical model with range fixed
-    # from the data extent (least squares; heuristics as fallback).
-    n = x.size
-    dx = x[:, None] - x[None, :]
-    dy = y[:, None] - y[None, :]
-    H = np.sqrt(dx * dx + dy * dy)
-    iu = np.triu_indices(n, 1)
-    h = H[iu]
-    g = 0.5 * (z[:, None] - z[None, :])[iu] ** 2
-    hmax = float(h.max()) if h.size else 0.0
-    if hmax <= 1e-12:
-        return 0.0, max(float(np.var(z)), 1e-12), 1.0
-    a = 0.5 * hmax
-    psill = max(float(np.var(z)), 1e-12)
-    nugget = 0.0
-    nbins = 10
-    edges = np.linspace(0.0, hmax * (1 + 1e-9), nbins + 1)
-    hc, gc = [], []
-    for i in range(nbins):
-        m = (h >= edges[i]) & (h < edges[i + 1])
-        if i == nbins - 1:
-            m = (h >= edges[i]) & (h <= edges[i + 1])
-        if m.sum() > 0:
-            hc.append(h[m].mean())
-            gc.append(g[m].mean())
-    hc = np.asarray(hc)
-    gc = np.asarray(gc)
-    if hc.size >= 3 and gc.max() > 1e-12:
-        F = _spherical_shape(hc, a)
-        A = np.column_stack([np.ones_like(F), F])
-        try:
-            coef, _res, _rk, _sv = np.linalg.lstsq(A, gc, rcond=None)
-            n0, s0 = float(coef[0]), float(coef[1])
-            if s0 > 1e-12:
-                psill = s0
-                # keep nugget non-negative and below the partial sill
-                nugget = min(max(n0, 0.0), psill)
-        except Exception:
-            pass
-    return nugget, psill, a
 
 
 def _kriging_basic(x, y, z, GX, GY):
@@ -683,19 +568,18 @@ def _kriging_basic(x, y, z, GX, GY):
     n = x.size
     if n > 2000:
         _fail(
-            "測點數過多（>2000），基礎克利金計算量過大，請改用 IDW",
-            "Too many points (>2000) for the basic kriging solver; please use IDW",
+            "測點數過多（>2000），基礎克利金計算量過大",
+            "Too many points (>2000) for the basic kriging solver",
         )
     zmean = float(z.mean())
     zvar = float(np.var(z))
     if zvar < 1e-15:
         return np.full(GX.shape, zmean)
-    nugget, psill, a = _variogram_params(x, y, z)
     dx = x[:, None] - x[None, :]
     dy = y[:, None] - y[None, :]
     H = np.sqrt(dx * dx + dy * dy)
     A = np.empty((n + 1, n + 1))
-    A[:n, :n] = _gamma(H, nugget, psill, a)
+    A[:n, :n] = _gamma(H)
     A[n, :n] = 1.0
     A[:n, n] = 1.0
     A[n, n] = 0.0
@@ -715,7 +599,7 @@ def _kriging_basic(x, y, z, GX, GY):
         ddy = y[:, None] - gy[None, i:i + chunk]
         h0 = np.sqrt(ddx * ddx + ddy * ddy)
         B = np.empty((n + 1, h0.shape[1]))
-        B[:n] = _gamma(h0, nugget, psill, a)
+        B[:n] = _gamma(h0)
         B[n] = 1.0
         lam = solve(B)
         out[i:i + chunk] = lam[:n].T @ z
@@ -723,21 +607,10 @@ def _kriging_basic(x, y, z, GX, GY):
 
 
 def _kriging(x, y, z, GX, GY):
-    gx = GX[0, :]
-    gy = GY[:, 0]
-    if PYKRIGE_OK:
-        try:
-            ok = OrdinaryKriging(
-                x, y, z,
-                variogram_model="spherical",
-                verbose=False,
-                enable_plotting=False,
-            )
-            Z, _ss = ok.execute("grid", gx, gy)
-            return np.ma.filled(np.ma.masked_invalid(Z), np.nan), "pykrige"
-        except Exception:
-            return _kriging_basic(x, y, z, GX, GY), "basic"
-    return _kriging_basic(x, y, z, GX, GY), "basic"
+    # 僅一種實作：純 numpy 之普通克利金。
+    # 已與 PyKrige（linear, slope=1, nugget=0）逐格比對，最大差 < 2e-12，
+    # 故不再引入 PyKrige 與 scipy，啟動時只需載入 numpy。
+    return _kriging_basic(x, y, z, GX, GY), "ok"
 
 
 # ---------------- Main entry ----------------
@@ -774,32 +647,30 @@ def _interpolate_impl(points_json, method, grid_n, power, bounds_json=""):
             "測點需同時在 X 與 Y 方向上有分佈",
             "Points must span both the X and Y directions",
         )
-    grid_n = int(min(300, max(10, int(grid_n))))
+    grid_n = int(min(500, max(20, int(grid_n))))
     power = float(min(8.0, max(0.5, float(power))))
     bounds = _parse_bounds(bounds_json)
     if bounds is None:
         bounds = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
     bx0, bx1, by0, by1 = bounds
-    gx = np.linspace(bx0, bx1, grid_n)
-    gy = np.linspace(by0, by1, grid_n)
+    # 網格依場域長寬比配置：長邊 grid_n 格，短邊按比例，使格點為正方形。
+    # 固定 grid_n × grid_n 於狹長場域會產生極度扁平之格點，等值線因而失真。
+    span_x = max(bx1 - bx0, 1e-9)
+    span_y = max(by1 - by0, 1e-9)
+    if span_x >= span_y:
+        nx = grid_n
+        ny = max(10, int(round(grid_n * span_y / span_x)))
+    else:
+        ny = grid_n
+        nx = max(10, int(round(grid_n * span_x / span_y)))
+    gx = np.linspace(bx0, bx1, nx)
+    gy = np.linspace(by0, by1, ny)
     GX, GY = np.meshgrid(gx, gy)
 
     method = str(method).lower()
     note = None
     backend = None
-    if method == "idw":
-        Z = _idw(x, y, z, GX, GY, power)
-        used = "idw"
-    elif method == "linear":
-        Z = _linear(x, y, z, GX, GY)
-        used = "linear"
-    elif method == "rbf":
-        Z = _rbf(x, y, z, GX, GY)
-        used = "rbf"
-    elif method == "spline":
-        Z, note = _spline(x, y, z, GX, GY)
-        used = "rbf" if note == "rbf_fallback" else "spline"
-    elif method == "kriging":
+    if method == "kriging":
         Z, backend = _kriging(x, y, z, GX, GY)
         used = "kriging"
     else:
@@ -807,7 +678,7 @@ def _interpolate_impl(points_json, method, grid_n, power, bounds_json=""):
 
     Z = np.asarray(Z, float)
     # Concentrations cannot be negative: floor extrapolation undershoot
-    # (RBF / spline / kriging may dip below zero outside the data hull).
+    # (kriging may dip below zero outside the data hull).
     Z = np.where(np.isfinite(Z), np.maximum(Z, 0.0), Z)
     finite = np.isfinite(Z)
     if not finite.any():
@@ -845,7 +716,7 @@ def interpolate(points_json, method, grid_n, power, bounds_json=""):
 
 
 def runtime_info():
-    return json.dumps({"scipy": SCIPY_OK, "pykrige": PYKRIGE_OK})
+    return json.dumps({"numpy": True})
 
 </script>
 
@@ -866,15 +737,15 @@ const SAMPLE_OEL = 100;
 const SAMPLE_FIELD = [20, 15];
 
 const COLORSCALES = {
-  Viridis:  { scale: 'Viridis' },
   Jet:      { scale: 'Jet' },
+  Viridis:  { scale: 'Viridis' },
   RdYlGn_r: { scale: [[0,'#006837'],[0.1,'#1a9850'],[0.2,'#66bd63'],[0.3,'#a6d96a'],[0.4,'#d9ef8b'],[0.5,'#ffffbf'],[0.6,'#fee08b'],[0.7,'#fdae61'],[0.8,'#f46d43'],[0.9,'#d73027'],[1,'#a50026']] },
   Hot_r:    { scale: 'Hot', reverse: true },
   Plasma:   { scale: [[0,'#0d0887'],[0.125,'#46039f'],[0.25,'#7201a8'],[0.375,'#9c179e'],[0.5,'#bd3786'],[0.625,'#d8576b'],[0.75,'#ed7953'],[0.875,'#fb9f3a'],[1,'#f0f921']] },
 };
 const SWATCH_GRADIENTS = {
-  Viridis:  ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
   Jet:      ['#00007f', '#0000ff', '#00ffff', '#ffff00', '#ff0000', '#7f0000'],
+  Viridis:  ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725'],
   RdYlGn_r: ['#006837', '#66bd63', '#ffffbf', '#f46d43', '#a50026'],
   Hot_r:    ['#ffffff', '#ffff33', '#ff4400', '#990000', '#0b0000'],
   Plasma:   ['#0d0887', '#9c179e', '#d8576b', '#fb9f3a', '#f0f921'],
@@ -893,10 +764,23 @@ const I18N = {
     field_warn: '請輸入有效的場域尺寸（寬、高需大於 0）',
     th_x: 'X座標(m)', th_y: 'Y座標(m)', th_c: '濃度值',
     btn_add_row: '＋ 新增列', btn_upload_csv: '上傳 CSV', btn_sample: '載入範例資料',
+    btn_upload_xlsx: '上傳標準資料表', btn_export_xlsx: '匯出標準資料表',
+    fixed_method: '普通克利金（Ordinary Kriging）',
+    fixed_method_note: '固定參數，不由資料估計；金塊效應為零可避免濃度峰值被低估。',
+    err_xlsx: '標準資料表讀取失敗，請確認分頁名稱為「基本資料與量測濃度」且第一列為欄位代碼',
+    msg_xlsx_ok: '已載入標準資料表，有效測點', msg_points: '點',
+    msg_lod: '點以偵測極限/√2 代入', msg_skipped: '點無有效濃度已略過',
     btn_generate: '產生分佈圖', btn_png: '下載 PNG', btn_csv: '下載網格 CSV',
     lbl_method: '插值方法', lbl_power: 'IDW 冪次 p', lbl_grid: '網格解析度',
     lbl_unit: '濃度單位', lbl_oel: 'OEL 閾值（選填）',
     lbl_title: '圖表標題', lbl_colorscale: '色階',
+    lbl_show_labels: '於圖上顯示各測點濃度值',
+    btn_rotate: '旋轉 90°', fp_rot_off: '圖面旋轉時無法調整底圖位置，請先轉回 0°',
+    lbl_repeat: '重複量測之取值', rep_mean: '平均（建議）', rep_1: '僅量測 1', rep_2: '僅量測 2',
+    rep_3: '僅量測 3', rep_max: '最大值（保守）',
+    rep_hint_head: '各次有效點數：', rep_hint_blank: '點於此取值方式下無資料，已排除',
+    msg_points_n: '點',
+    grid_hint: '網格依場域長寬比配置，格點為正方形；數值為長邊之格數。',
     lbl_contour_opacity: '分佈圖不透明度', contour_opacity_hint: '疊加平面圖時可調低此值，使底圖更清楚。',
     lbl_font_color: '標註字色', lbl_font_size: '字級', lbl_marker_size: '點大小',
     lbl_fp_file: '上傳平面圖（PNG / JPG）', lbl_fp_opacity: '底圖不透明度',
@@ -924,23 +808,22 @@ const I18N = {
     err_csv_parse: 'CSV 解析失敗', err_csv_cols: '無法辨識 CSV 欄位（需要 x、y、c／濃度 欄位）',
     csv_imported: '已匯入 {n} 個測點', csv_skipped: '，略過 {m} 列無效資料',
     pkg_fail: '部分套件載入失敗：', pkg_methods_off: '不可用方法：', pkg_ok_methods: '仍可使用：',
-    kriging_note: 'Kriging（基礎實作 / basic implementation）：pykrige 未能安裝，已使用內建普通克利金',
     spline_note: '測點少於 16 點，Spline 已自動改用 RBF',
-    oel_caption: '粗紅線＝OEL　紅色半透明區＝超標範圍',
+    oel_caption: '粗紅線＝OEL 等值線，線內側為超標範圍',
     status_ready: '運算環境就緒', status_loading: '運算環境載入中…', status_failed: '運算環境載入失敗',
     load_err: '運算環境載入失敗，請檢查網路連線後重試。',
     row_del: '刪除此列',
     ph_oel: '例：100',
     disc_label: '免責聲明：',
-    disc_short: '本工具之插值結果為有限測點之數學估計，僅供參考，不得作為法規合規判定或健康風險評估之唯一依據。',
+    disc_short: '本工具之插值結果為基於有限測點之數學估計，僅供作業環境危害分布之視覺化參考，不得作為法定作業環境監測之替代，亦不得作為法規合規判定或健康風險評估之唯一依據。',
     disc_more: '詳全文',
     tip_idw: '以距離倒數加權平均估計，越近的測點影響越大，計算快速且穩定。',
     tip_linear: '在測點構成的三角網格內做線性插值，凸包外以最近測點值填補。',
     tip_rbf: '以薄板樣條徑向基函數擬合平滑曲面，適合不規則分佈的測點。',
     tip_spline: '先將測點彙整為規則網格，再以雙變數樣條擬合（少於 16 點時自動改用 RBF）。',
-    tip_kriging: '依半變異圖建立地統計模型，提供考慮空間相關性的最佳線性無偏估計。',
+    tip_kriging: '普通克利金，變異函數固定為線性、斜率 1、金塊效應 0、異方性比 1。此設定下權重與斜率數值無關，不需由資料估計參數，測點少時仍可穩定求解；金塊效應為零使曲面於測點處連續，不致系統性低估峰值。',
     m_idw: 'IDW（反距離加權）', m_linear: '線性 Linear', m_rbf: 'RBF（薄板樣條）',
-    m_spline: 'Spline（雙三次樣條）', m_kriging: 'Kriging（克利金）', m_kriging_basic: 'Kriging（基礎實作）',
+    m_spline: 'Spline（雙三次樣條）', m_kriging: 'Kriging（克利金）',
     na: '（不可用）',
   },
   en: {
@@ -955,10 +838,23 @@ const I18N = {
     field_warn: 'Please enter valid field dimensions (width and height > 0)',
     th_x: 'X (m)', th_y: 'Y (m)', th_c: 'Concentration',
     btn_add_row: '＋ Add Row', btn_upload_csv: 'Upload CSV', btn_sample: 'Load Sample Data',
+    btn_upload_xlsx: 'Upload standard table', btn_export_xlsx: 'Export standard table',
+    fixed_method: 'Ordinary kriging',
+    fixed_method_note: 'Fixed parameters, not estimated from the data; a zero nugget avoids flattening the concentration peak.',
+    err_xlsx: 'Could not read the standard data table — check that the sheet is named 基本資料與量測濃度 and row 1 holds the field codes',
+    msg_xlsx_ok: 'Standard table loaded, valid points:', msg_points: '',
+    msg_lod: 'substituted with LOD/√2', msg_skipped: 'skipped (no valid concentration)',
     btn_generate: 'Generate Map', btn_png: 'Download PNG', btn_csv: 'Download Grid CSV',
     lbl_method: 'Interpolation Method', lbl_power: 'IDW Power p', lbl_grid: 'Grid Resolution',
     lbl_unit: 'Concentration Unit', lbl_oel: 'OEL Threshold (optional)',
     lbl_title: 'Map Title', lbl_colorscale: 'Color Scale',
+    lbl_show_labels: 'Show concentration value at each point',
+    btn_rotate: 'Rotate 90°', fp_rot_off: 'Reset rotation to 0° before adjusting the floor plan',
+    lbl_repeat: 'Repeated measurements', rep_mean: 'Mean (recommended)', rep_1: 'Run 1 only',
+    rep_2: 'Run 2 only', rep_3: 'Run 3 only', rep_max: 'Maximum (conservative)',
+    rep_hint_head: 'Valid points per run: ', rep_hint_blank: 'point(s) have no value in this mode and are excluded',
+    msg_points_n: 'pts',
+    grid_hint: 'The grid follows the field aspect ratio so cells stay square; the value is the cell count along the long edge.',
     lbl_contour_opacity: 'Contour opacity', contour_opacity_hint: 'Lower this when overlaying a floor plan so the plan shows through.',
     lbl_font_color: 'Label color', lbl_font_size: 'Font size', lbl_marker_size: 'Marker',
     lbl_fp_file: 'Upload Floor Plan (PNG / JPG)', lbl_fp_opacity: 'Floor Plan Opacity',
@@ -986,31 +882,29 @@ const I18N = {
     err_csv_parse: 'CSV parsing failed', err_csv_cols: 'Could not detect CSV columns (need x, y, c/concentration)',
     csv_imported: 'Imported {n} points', csv_skipped: ', skipped {m} invalid rows',
     pkg_fail: 'Some packages failed to load: ', pkg_methods_off: 'Unavailable methods: ', pkg_ok_methods: 'Still available: ',
-    kriging_note: 'Kriging (基礎實作 / basic implementation): pykrige could not be installed; built-in Ordinary Kriging is used',
     spline_note: 'Fewer than 16 points — Spline automatically fell back to RBF',
-    oel_caption: 'Bold red line = OEL; red shaded area = exceedance zone',
+    oel_caption: 'Bold red line = OEL contour; the enclosed side exceeds the limit',
     status_ready: 'Runtime ready', status_loading: 'Loading runtime…', status_failed: 'Runtime failed to load',
     load_err: 'Failed to load the computing runtime. Please check your network connection and retry.',
     row_del: 'Delete this row',
     ph_oel: 'e.g. 100',
     disc_label: 'Disclaimer: ',
-    disc_short: 'Interpolated results are mathematical estimates from limited points, for reference only — not a sole basis for regulatory compliance or health risk decisions.',
+    disc_short: 'Interpolated results are mathematical estimates from a limited number of measured points, intended only as a visual reference for the spatial distribution of workplace hazards. They are not a substitute for statutory workplace monitoring, nor a sole basis for compliance or health-risk decisions.',
     disc_more: 'Full text',
     tip_idw: 'Inverse-distance weighted average; nearer points dominate. Fast and robust.',
     tip_linear: 'Linear interpolation on a triangulated mesh; areas outside the convex hull are filled with nearest values.',
     tip_rbf: 'Thin-plate-spline radial basis surface; good for irregularly scattered points.',
     tip_spline: 'Bins points onto a regular grid, then fits a bivariate spline (falls back to RBF below 16 points).',
-    tip_kriging: 'Geostatistical estimation from a fitted semivariogram (best linear unbiased estimator).',
+    tip_kriging: 'Ordinary kriging with a fixed linear variogram: slope 1, nugget 0, anisotropy 1. With a zero nugget the weights do not depend on the slope, so no parameter is estimated from the data; the surface stays continuous at the measured points and the peak is not flattened.',
     m_idw: 'IDW (Inverse Distance)', m_linear: 'Linear', m_rbf: 'RBF (Thin Plate Spline)',
-    m_spline: 'Spline (Bicubic)', m_kriging: 'Kriging', m_kriging_basic: 'Kriging (basic implementation)',
+    m_spline: 'Spline (Bicubic)', m_kriging: 'Kriging',
     na: ' (unavailable)',
   },
 };
 
 const LOAD_MSG = {
   stage1: ['正在載入運算環境...', 'Loading scientific computing runtime...'],
-  stage2: ['載入 numpy, scipy, pandas...', 'Loading numpy, scipy, pandas...'],
-  stage3: ['載入插值模組 (Kriging)...', 'Loading interpolation modules (Kriging)...'],
+  stage2: ['載入 numpy...', 'Loading numpy...'],
   stage4: ['初始化插值模組...', 'Initializing interpolation modules...'],
   ready:  ['就緒！', 'Ready!'],
 };
@@ -1019,17 +913,18 @@ const LOAD_MSG = {
 const state = {
   lang: 'zh',
   points: [],                 // raw strings, {x,y,c, drop?}
-  method: 'idw',
+  method: 'kriging',
   power: 2.0,
-  gridN: 100,
-  colorscale: 'Viridis',
-  chart: { fontColor: '#0f172a', fontSize: 10, markerSize: 7, contourOpacity: 100 },
+  gridN: 120,
+  colorscale: 'Jet',
+  chart: { fontColor: '#0f172a', fontSize: 10, markerSize: 7, contourOpacity: 100, showLabels: true },
   floorplan: { dataUrl: null, name: '', opacity: 60, x0: 0, y0: 0, w: 20, h: 15, custom: false },
+  rotation: 0,            // 圖面顯示旋轉角度（0/90/180/270，僅影響呈現）
+  repeats: null,          // 匯入標準資料表之 c1–c3 原始值
+  repeatMode: 'mean',
   lastResult: null,
   hasResult: false,
   pyReady: false,
-  scipyOK: false,
-  pykrige: false,
   failedPackages: [],
   busy: false,
 };
@@ -1046,16 +941,17 @@ const els = {};
  'py-status','py-status-text','lang-toggle','lang-toggle-label','nav-about',
  'sidebar','sheet-handle','sheet-chevron','sidebar-scroll','panel-header','resize-handle','main-area',
  'field-w','field-h','field-warn',
- 'table-body','btn-add-row','btn-upload-csv','csv-file','btn-sample','pt-count','bbox-dims','warn-few','qaqc-summary',
+ 'table-body','btn-add-row','btn-upload-csv','csv-file','btn-upload-xlsx','btn-export-xlsx','xlsx-file','btn-sample','pt-count','bbox-dims','warn-few','qaqc-summary',
  'stats-grid','stats-card',
- 'method-select','method-tip','method-help','power-row','power-slider','power-val','grid-slider','grid-val','grid-val2',
+ 'method-select','method-tip','method-help','power-row','power-slider','power-val','grid-slider','grid-val','grid-val2','grid-cell',
  'unit-input','oel-input',
  'title-input','colorscale-swatches','colorscale-name','contour-opacity','contour-opacity-val',
+ 'show-labels','repeat-row','repeat-mode','repeat-hint',
  'font-color','font-size','font-size-val','marker-size','marker-size-val',
  'btn-fp-upload','fp-file','fp-name','fp-opacity','fp-opacity-val','btn-fp-adjust','btn-fp-adjust-label','btn-fp-reset','btn-fp-remove',
  'banner','banner-msg','banner-close',
  'note-kriging','note-spline','oel-caption','note-fpedit',
- 'plot-wrap','plot','plot-empty','plot-busy','btn-empty-sample','btn-png','btn-csv-dl','grid-info',
+ 'plot-wrap','plot','plot-empty','plot-busy','btn-empty-sample','btn-png','btn-csv-dl','btn-rotate','rotate-val','grid-info',
  'fp-editor','fp-editor-label','disc-more','modal-about',
 ].forEach((id) => { els[id.replace(/-([a-z0-9])/g, (_, ch) => ch.toUpperCase())] = $(id); });
 
@@ -1098,17 +994,15 @@ function updateFieldValidity() {
 }
 
 /* ================= Method dropdown ================= */
-const METHODS = ['idw', 'linear', 'rbf', 'spline', 'kriging'];
-const SCIPY_METHODS = ['linear', 'rbf', 'spline'];
+const METHODS = ['kriging'];
 
 function methodLabel(m) {
-  if (m === 'kriging') return state.pyReady && !state.pykrige ? t('m_kriging_basic') : t('m_kriging');
+  if (m === 'kriging') return t('m_kriging');
   return t('m_' + m);
 }
 function methodAvailable(m) {
   if (!state.pyReady) return true; // before init, leave enabled; generate is gated anyway
   if (state.failedPackages.includes('numpy')) return false;
-  if (SCIPY_METHODS.includes(m) && !state.scipyOK) return false;
   return true;
 }
 function rebuildMethodOptions() {
@@ -1123,14 +1017,14 @@ function rebuildMethodOptions() {
     opt.title = t('tip_' + m);
     sel.appendChild(opt);
   });
-  if (!methodAvailable(state.method)) state.method = 'idw';
+  state.method = 'kriging';
   sel.value = state.method;
 }
 function updateMethodHelp() {
   const tip = t('tip_' + state.method);
   els.methodHelp.textContent = tip;
   els.methodTip.title = tip;
-  els.powerRow.style.display = state.method === 'idw' ? '' : 'none';
+  els.powerRow.style.display = 'none';
 }
 
 /* ================= QAQC ================= */
@@ -1324,6 +1218,7 @@ els.tableBody.addEventListener('input', (e) => {
   const tr = input.closest('tr');
   const idx = +tr.dataset.idx;
   state.points[idx][input.dataset.k] = input.value;
+  if (input.dataset.k === 'c') clearRepeats();   // 手動改值後，重複量測選項不再適用
   validateCell(input);
   updateStatus();
   scheduleRecompute(1100);
@@ -1347,6 +1242,171 @@ els.tableBody.addEventListener('click', (e) => {
 });
 
 /* ================= CSV import ================= */
+/* ========== 標準資料表（xlsx）讀寫 ========== */
+const STD_SHEET = '基本資料與量測濃度';
+const STD_META = ['site_name','survey_date','field_x_m','field_y_m','c_name','c_unit','c_LOD','remark'];
+const STD_META_ZH = {site_name:'場域名稱',survey_date:'量測日期',field_x_m:'場域 X 方向長度',
+  field_y_m:'場域 Y 方向長度',c_name:'污染物名稱',c_unit:'污染物單位',c_LOD:'儀器偵測極限',remark:'備註'};
+const STD_META_UNIT = {survey_date:'YYYY-MM-DD',field_x_m:'m',field_y_m:'m',c_LOD:'同上單位'};
+
+function handleXlsxFile(file) {
+  const fr = new FileReader();
+  fr.onload = (ev) => {
+    try { importStandardTable(new Uint8Array(ev.target.result)); }
+    catch (err) { showBanner(`${t('err_xlsx')} / Standard table import failed: ${err.message || err}`, 'error'); }
+  };
+  fr.onerror = () => showBanner(`${t('err_xlsx')} / read error`, 'error');
+  fr.readAsArrayBuffer(file);
+}
+
+function importStandardTable(buf) {
+  const wb = XLSX.read(buf, { type: 'array' });
+  const sh = wb.Sheets[STD_SHEET] || wb.Sheets[wb.SheetNames[0]];
+  if (!sh) throw new Error('no sheet');
+  const rows = XLSX.utils.sheet_to_json(sh, { header: 1, blankrows: true, defval: '' });
+  if (rows.length < 3) throw new Error('sheet too short');
+  // 第 1 列為英文欄位代碼；資料自第 3 列起
+  const code = (rows[0] || []).map((v) => String(v ?? '').trim());
+  const col = (name) => code.indexOf(name);
+  const cMeta = col('field_code'), cVal = col('value');
+  const meta = {};
+  if (cMeta >= 0 && cVal >= 0) {
+    for (let r = 2; r < rows.length; r++) {
+      const k = String(rows[r][cMeta] ?? '').trim();
+      if (k) meta[k] = rows[r][cVal];
+    }
+  }
+  const iId = col('point_id'), iX = col('x_m'), iY = col('y_m'),
+        iC1 = col('c1'), iC2 = col('c2'), iC3 = col('c3'), iNote = col('note');
+  if (iX < 0 || iY < 0 || iC1 < 0) throw new Error('missing x_m / y_m / c1 columns');
+  const lod = parseFloat(meta.c_LOD);
+  const pts = []; let nLod = 0, nSkip = 0;
+  for (let r = 2; r < rows.length; r++) {
+    const row = rows[r] || [];
+    const x = parseFloat(row[iX]), y = parseFloat(row[iY]);
+    if (!isFinite(x) || !isFinite(y)) continue;
+    const note = String(row[iNote] ?? '').trim();
+    // 保留 c1–c3 各自之值（缺項為 null），供使用者事後改變取值方式
+    const reps = [iC1, iC2, iC3].map((i) => {
+      if (i < 0) return null;
+      const v = parseFloat(row[i]);
+      return isFinite(v) ? v : null;
+    });
+    const vals = reps.filter((v) => v !== null);
+    let c = null, isLod = false;
+    if (vals.length) c = vals.reduce((a, b) => a + b, 0) / vals.length;
+    else if (/<\s*LOD/i.test(note) && isFinite(lod)) { c = lod / Math.SQRT2; nLod++; isLod = true; }
+    else { nSkip++; continue; }
+    pts.push({ x, y, c, reps, isLod });
+  }
+  if (!pts.length) throw new Error('no valid points');
+  const fw = parseFloat(meta.field_x_m), fh = parseFloat(meta.field_y_m);
+  if (isFinite(fw) && fw > 0) els.fieldW.value = fw;
+  if (isFinite(fh) && fh > 0) els.fieldH.value = fh;
+  if (meta.c_unit) els.unitInput.value = String(meta.c_unit).trim();
+  if (meta.c_name) els.titleInput.value = String(meta.c_name).trim();
+  // 有兩欄以上實際填有數值時，才提供取值方式選擇
+  const nCols = [0, 1, 2].filter((k) => pts.some((p) => p.reps[k] !== null)).length;
+  state.repeats = nCols >= 2
+    ? { reps: pts.map((p) => p.reps), lod: pts.map((p) => p.isLod), lodValue: lod, nCols }
+    : null;
+  state.repeatMode = 'mean';
+  els.repeatMode.value = 'mean';
+  state.points = pts.map((p) => ({ x: String(p.x), y: String(p.y), c: String(Number(p.c.toFixed(6))), drop: false }));
+  while (state.points.length < 3) state.points.push({ x: '', y: '', c: '', drop: false });
+  updateRepeatUI();
+  renderTable();
+  updateStatus();
+  scheduleRecompute(150);
+  const extra = [];
+  if (nLod) extra.push(`${nLod} ${t('msg_lod')}`);
+  if (nSkip) extra.push(`${nSkip} ${t('msg_skipped')}`);
+  showBanner(`${t('msg_xlsx_ok')} ${pts.length} ${t('msg_points')}${extra.length ? '（' + extra.join('、') + '）' : ''}`, 'info');
+}
+
+/* ---- 重複量測（c1–c3）之取值 ----
+   同一測點之重複量測用於降低儀器雜訊，預設取算術平均；
+   欲比較個別時段或採保守判讀時，可改取單次或最大值。 */
+function applyRepeatMode() {
+  const R = state.repeats;
+  if (!R) return;
+  const mode = state.repeatMode;
+  let nBlank = 0;
+  R.reps.forEach((reps, i) => {
+    let v = null;
+    if (mode === 'mean') {
+      const vals = reps.filter((u) => u !== null);
+      if (vals.length) v = vals.reduce((a, b) => a + b, 0) / vals.length;
+    } else if (mode === 'max') {
+      const vals = reps.filter((u) => u !== null);
+      if (vals.length) v = Math.max(...vals);
+    } else {
+      v = reps[parseInt(mode, 10) - 1] ?? null;
+    }
+    if (v === null && R.lod[i] && isFinite(R.lodValue)) v = R.lodValue / Math.SQRT2;
+    if (v === null) nBlank++;
+    if (state.points[i]) state.points[i].c = v === null ? '' : String(Number(v.toFixed(6)));
+  });
+  updateRepeatUI(nBlank);
+  renderTable();
+  updateStatus();
+  scheduleRecompute(150);
+}
+function updateRepeatUI(nBlank) {
+  const R = state.repeats;
+  els.repeatRow.classList.toggle('hidden', !R);
+  if (!R) return;
+  const counts = [0, 1, 2].map((k) => R.reps.filter((r) => r[k] !== null).length);
+  els.repeatMode.querySelectorAll('option').forEach((op) => {
+    const k = parseInt(op.value, 10);
+    if (!isNaN(k)) {
+      op.disabled = counts[k - 1] === 0;
+      op.textContent = `${t('rep_' + k)}（${counts[k - 1]} ${t('msg_points_n')}）`;
+    }
+  });
+  const parts = [`${t('rep_hint_head')}${counts.filter((c) => c > 0).join(' / ')}`];
+  if (nBlank) parts.push(`${nBlank} ${t('rep_hint_blank')}`);
+  els.repeatHint.textContent = parts.join('　');
+}
+function clearRepeats() {
+  if (!state.repeats) return;
+  state.repeats = null;
+  els.repeatRow.classList.add('hidden');
+}
+
+function exportStandardTable() {
+  const pts = state.points
+    .map((p) => ({ x: parseFloat(p.x), y: parseFloat(p.y), c: parseFloat(p.c) }))
+    .filter((p) => isFinite(p.x) && isFinite(p.y));
+  const meta = {
+    site_name: (els.titleInput.value || '').trim(),
+    survey_date: new Date().toISOString().slice(0, 10),
+    field_x_m: parseFloat(els.fieldW.value) || '',
+    field_y_m: parseFloat(els.fieldH.value) || '',
+    c_name: (els.titleInput.value || '').trim(),
+    c_unit: (els.unitInput.value || '').trim(),
+    c_LOD: '', remark: '',
+  };
+  const head1 = ['field_code','field_name','value','unit','','point_id','x_m','y_m','c1','c2','c3','note'];
+  const head2 = ['欄位代碼','欄位名稱','填寫內容','單位','','測點編號','X 座標','Y 座標','量測1','量測2','量測n','備註'];
+  const n = Math.max(STD_META.length, pts.length);
+  const body = [];
+  for (let i = 0; i < n; i++) {
+    const k = STD_META[i];
+    const row = k ? [k, STD_META_ZH[k], meta[k] ?? '', STD_META_UNIT[k] || '', '']
+                  : ['', '', '', '', ''];
+    const p = pts[i];
+    if (p) row.push('P' + String(i + 1).padStart(2, '0'), p.x, p.y, isFinite(p.c) ? p.c : '', '', '', '');
+    else row.push('', '', '', '', '', '', '');
+    body.push(row);
+  }
+  const ws = XLSX.utils.aoa_to_sheet([head1, head2, ...body]);
+  ws['!cols'] = [{wch:14},{wch:18},{wch:16},{wch:10},{wch:3},{wch:12},{wch:10},{wch:10},{wch:12},{wch:12},{wch:12},{wch:24}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, STD_SHEET);
+  XLSX.writeFile(wb, '濃度分佈測量標準資料表.xlsx');
+}
+
 function handleCsvFile(file) {
   Papa.parse(file, {
     header: false,
@@ -1462,7 +1522,8 @@ function updateFpButtons() {
   const can = !!state.floorplan.dataUrl;
   els.btnFpRemove.disabled = !can;
   els.btnFpReset.disabled = !can;
-  els.btnFpAdjust.disabled = !(can && state.hasResult);
+  els.btnFpAdjust.disabled = !(can && state.hasResult && !state.rotation);
+  els.btnFpAdjust.title = state.rotation ? t('fp_rot_off') : '';
 }
 
 /* ---- plot pixel <-> data mapping ---- */
@@ -1600,12 +1661,8 @@ function hideBanner() {
 }
 function updateNotes() {
   const res = state.lastResult;
-  const showKriging = state.pyReady && !state.pykrige && state.method === 'kriging';
-  els.noteKriging.textContent = 'ⓘ ' + t('kriging_note');
-  els.noteKriging.classList.toggle('hidden', !showKriging);
-  const showSpline = !!(res && res.note === 'rbf_fallback' && state.method === 'spline');
-  els.noteSpline.textContent = 'ⓘ ' + t('spline_note');
-  els.noteSpline.classList.toggle('hidden', !showSpline);
+  els.noteKriging.classList.add('hidden');
+  els.noteSpline.classList.add('hidden');
   const oel = parseFloat(els.oelInput.value);
   const showOel = state.hasResult && isFinite(oel) && oel > 0;
   els.oelCaption.textContent = '⬤ ' + t('oel_caption');
@@ -1664,6 +1721,7 @@ async function compute() {
     els.plotEmpty.classList.add('hidden');
     els.btnPng.disabled = false;
     els.btnCsvDl.disabled = false;
+    els.btnRotate.disabled = false;
     renderPlot();
     updateNotes();
     updateFpButtons();
@@ -1685,12 +1743,55 @@ function formatLabel(c) {
   if (Math.abs(c) >= 10) return String(Math.round(c * 10) / 10);
   return String(Math.round(c * 100) / 100);
 }
+/* ---- 圖面旋轉 ----
+   僅改變呈現方式，不更動任何數值：奇數次旋轉時將 X／Y 對調（網格轉置），
+   再以「反轉座標軸範圍」表現旋轉方向，故兩軸刻度仍為原始座標值。
+   下載之網格 CSV 一律維持原始座標。 */
+function rotFlags() {
+  const k = ((state.rotation % 360) + 360) % 360 / 90;
+  return { k, swap: k % 2 === 1, xRev: k === 2 || k === 3, yRev: k === 1 || k === 2 };
+}
+function transpose(z) {
+  const ny = z.length, nx = z[0].length;
+  const out = new Array(nx);
+  for (let j = 0; j < nx; j++) {
+    const row = new Array(ny);
+    for (let i = 0; i < ny; i++) row[i] = z[i][j];
+    out[j] = row;
+  }
+  return out;
+}
+// Plotly 無法旋轉版面圖片，底圖須自行以 canvas 轉出旋轉後之影像
+const fpRotCache = {};
+function rotatedFloorplan(dataUrl, k) {
+  if (!k) return dataUrl;
+  const key = k + '|' + dataUrl.length + '|' + dataUrl.slice(-32);
+  if (fpRotCache[key]) return fpRotCache[key];
+  const img = new Image();
+  img.src = dataUrl;
+  if (!img.complete || !img.naturalWidth) { setTimeout(() => renderPlot(), 120); return dataUrl; }
+  const c = document.createElement('canvas');
+  const w = img.naturalWidth, h = img.naturalHeight;
+  c.width = k % 2 ? h : w;
+  c.height = k % 2 ? w : h;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate(k * Math.PI / 2);          // 正值為順時針，與圖面旋轉方向一致
+  ctx.drawImage(img, -w / 2, -h / 2);
+  const url = c.toDataURL('image/png');
+  fpRotCache[key] = url;
+  return url;
+}
+
 function renderPlot() {
   const res = state.lastResult;
   if (!res) return;
-  const gx = res.grid_x[0];
-  const gy = res.grid_y.map((row) => row[0]);
-  const cs = COLORSCALES[state.colorscale] || COLORSCALES.Viridis;
+  const R = rotFlags();
+  let gx = res.grid_x[0];
+  let gy = res.grid_y.map((row) => row[0]);
+  let gz = res.grid_z;
+  if (R.swap) { const t0 = gx; gx = gy; gy = t0; gz = transpose(gz); }
+  const cs = COLORSCALES[state.colorscale] || COLORSCALES.Jet;
   const fp = state.floorplan;
   const hasFp = floorplanActive();
   const unit = (els.unitInput.value || '').replace(/[<>]/g, '').trim();
@@ -1700,61 +1801,74 @@ function renderPlot() {
     title: { text: unit, side: 'top', font: { size: 11, color: '#475569' } },
     thickness: 14, len: 0.92, outlinewidth: 0, tickfont: { size: 10, color: '#475569' },
   };
-  const hover = `X: %{x:.2f} m<br>Y: %{y:.2f} m<br>%{z:.4g} ${unit}<extra></extra>`;
+  const hover = R.swap
+    ? `X: %{y:.2f} m<br>Y: %{x:.2f} m<br>%{z:.4g} ${unit}<extra></extra>`
+    : `X: %{x:.2f} m<br>Y: %{y:.2f} m<br>%{z:.4g} ${unit}<extra></extra>`;
   const traces = [];
 
   traces.push({
-    type: 'contour', x: gx, y: gy, z: res.grid_z,
+    type: 'contour', x: gx, y: gy, z: gz,
     colorscale: cs.scale, reversescale: !!cs.reverse, opacity: mainOpacity,
     contours: {
-      coloring: 'fill', showlines: true, showlabels: true,
-      labelfont: { size: Math.max(7, chart.fontSize - 1), color: chart.fontColor },
+      coloring: 'fill', showlines: true, showlabels: false,
     },
-    line: { color: 'rgba(15,23,42,0.35)', width: 0.7, smoothing: 1 },
+    line: { color: 'rgba(15,23,42,0.35)', width: 0.7, smoothing: 0 },
     colorbar, hovertemplate: hover,
   });
 
   const oel = parseFloat(els.oelInput.value);
   if (isFinite(oel) && oel > 0) {
     traces.push({
-      type: 'contour', x: gx, y: gy, z: res.grid_z,
+      type: 'contour', x: gx, y: gy, z: gz,
       showscale: false, hoverinfo: 'skip', name: 'OEL',
       opacity: mainOpacity, // OEL line + red fill fade with the contour layer
-      // Plotly shades the region that VIOLATES the constraint, so "< oel"
-      // shades where z >= oel — the exceedance zone.
+      // 僅以粗紅線標出 OEL 等值線；不加半透明紅色填色——填色會與色階疊合，
+      // 使超標區之顏色偏離色標，導致濃度判讀錯誤。
       contours: { type: 'constraint', operation: '<', value: oel, showlines: true },
-      fillcolor: 'rgba(220,38,38,0.30)',
+      fillcolor: 'rgba(0,0,0,0)',
       line: { color: '#b91c1c', width: 3 },
     });
   }
 
   const vp = validPoints();
   traces.push({
-    type: 'scatter', mode: 'markers+text',
-    x: vp.map((p) => p.x), y: vp.map((p) => p.y),
+    type: 'scatter', mode: chart.showLabels ? 'markers+text' : 'markers',
+    x: vp.map((p) => (R.swap ? p.y : p.x)), y: vp.map((p) => (R.swap ? p.x : p.y)),
     text: vp.map((p) => formatLabel(p.c)),
     textposition: 'top center',
     textfont: { size: chart.fontSize, color: chart.fontColor },
     marker: { color: '#0f172a', size: chart.markerSize, line: { color: '#ffffff', width: 1.5 } },
     opacity: mainOpacity, // point markers + concentration labels fade with the contour layer
-    hovertemplate: `(%{x}, %{y})<br>%{text} ${unit}<extra></extra>`,
+    hovertemplate: (R.swap ? `(%{y}, %{x})` : `(%{x}, %{y})`) + `<br>%{text} ${unit}<extra></extra>`,
     cliponaxis: false,
   });
 
-  const xr = [res.x_range[0], res.x_range[1]];
-  const yr = [res.y_range[0], res.y_range[1]];
+  // 旋轉後之顯示範圍：奇數次旋轉時兩軸對調，方向則以反轉範圍表現
+  const oxr = [res.x_range[0], res.x_range[1]];
+  const oyr = [res.y_range[0], res.y_range[1]];
+  const xr = R.swap ? oyr.slice() : oxr.slice();
+  const yr = R.swap ? oxr.slice() : oyr.slice();
   const padX = (xr[1] - xr[0]) * 0.02, padY = (yr[1] - yr[0]) * 0.02;
-  fullRange = { x: [xr[0] - padX, xr[1] + padX], y: [yr[0] - padY, yr[1] + padY] };
+  let fx = [xr[0] - padX, xr[1] + padX];
+  let fy = [yr[0] - padY, yr[1] + padY];
+  if (R.xRev) fx.reverse();
+  if (R.yRev) fy.reverse();
+  fullRange = { x: fx, y: fy };
+
+  // 底圖：資料座標之矩形隨軸對調，影像本身另以 canvas 旋轉
+  const fpRect = R.swap
+    ? { x0: fp.y0, y0: fp.x0, w: fp.h, h: fp.w }
+    : { x0: fp.x0, y0: fp.y0, w: fp.w, h: fp.h };
 
   const layout = {
     title: { text: els.titleInput.value || '', font: { size: 16, color: '#0f172a' }, x: 0.5, xanchor: 'center' },
     xaxis: {
-      title: { text: 'X (m)', font: { size: 12, color: '#475569' } },
+      title: { text: R.swap ? 'Y (m)' : 'X (m)', font: { size: 12, color: '#475569' } },
       range: fullRange.x.slice(), constrain: 'domain',
       zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
     },
     yaxis: {
-      title: { text: 'Y (m)', font: { size: 12, color: '#475569' } },
+      title: { text: R.swap ? 'X (m)' : 'Y (m)', font: { size: 12, color: '#475569' } },
       range: fullRange.y.slice(),
       scaleanchor: 'x', scaleratio: 1, constrain: 'domain',
       zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
@@ -1765,10 +1879,10 @@ function renderPlot() {
     showlegend: false,
     hovermode: 'closest',
     dragmode: 'pan',
-    uirevision: res.x_range.join(',') + '|' + res.y_range.join(','),
+    uirevision: res.x_range.join(',') + '|' + res.y_range.join(',') + '|' + R.k,
     images: hasFp ? [{
-      source: fp.dataUrl, xref: 'x', yref: 'y',
-      x: fp.x0, y: fp.y0 + fp.h, sizex: fp.w, sizey: fp.h,
+      source: rotatedFloorplan(fp.dataUrl, R.k), xref: 'x', yref: 'y',
+      x: fpRect.x0, y: fpRect.y0 + fpRect.h, sizex: fpRect.w, sizey: fpRect.h,
       sizing: 'stretch', opacity: fp.opacity / 100, layer: 'below',
     }] : [],
   };
@@ -1806,9 +1920,24 @@ function slugTitle() {
   const s = (els.titleInput.value || 'contour').replace(/[\\/:*?"<>|]/g, '').trim();
   return s || 'contour';
 }
+// PNG 直接沿用畫面上預覽之版面：以繪圖容器的實際像素尺寸出圖，
+// 僅提高輸出倍率。若另行指定寬高，Plotly 會依新畫布重新配置字級、
+// 色階與邊界，輸出結果便與預覽不一致。
+function exportScale() {
+  const r = els.plot.getBoundingClientRect();
+  const long = Math.max(r.width, r.height) || 800;
+  return Math.min(4, Math.max(2, Math.round(2400 / long)));   // 長邊約 2400 px 以上
+}
 function downloadPng() {
   if (!state.hasResult) return;
-  Plotly.downloadImage(els.plot, { format: 'png', width: 1600, height: 1000, scale: 2, filename: slugTitle() });
+  const r = els.plot.getBoundingClientRect();
+  Plotly.downloadImage(els.plot, {
+    format: 'png',
+    width: Math.round(r.width),
+    height: Math.round(r.height),
+    scale: exportScale(),
+    filename: slugTitle(),
+  });
 }
 function downloadGridCsv() {
   const res = state.lastResult;
@@ -1908,12 +2037,6 @@ function setLoadMsg(key) {
   const m = LOAD_MSG[key];
   els.loadMsg.textContent = `${m[0]} / ${m[1]}`;
 }
-function withTimeout(promise, ms) {
-  return Promise.race([
-    promise,
-    new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms)),
-  ]);
-}
 function finishLoading() {
   clearInterval(creepTimer);
   setProgress(100);
@@ -1953,40 +2076,20 @@ async function initPyodide() {
     setProgress(36);
     setLoadMsg('stage2');
     creepTo(70);
+    // 插值僅使用純 numpy 之普通克利金，故只載入 numpy。
     const failed = [];
     try { await pyodideInstance.loadPackage('numpy'); } catch (e) { console.error(e); failed.push('numpy'); }
-    setProgress(Math.max(progress, 48));
-    try { await pyodideInstance.loadPackage('scipy'); } catch (e) { console.error(e); failed.push('scipy'); }
-    setProgress(Math.max(progress, 64));
-    try { await pyodideInstance.loadPackage('pandas'); } catch (e) { console.error(e); failed.push('pandas'); }
     state.failedPackages = failed;
     if (failed.includes('numpy')) throw new Error('numpy failed to load');
-    setProgress(72);
-    setLoadMsg('stage3');
-    creepTo(86);
-    try {
-      await pyodideInstance.loadPackage('micropip');
-      await withTimeout(
-        pyodideInstance.runPythonAsync('import micropip\nawait micropip.install("pykrige")'),
-        25000
-      );
-    } catch (e) {
-      console.warn('pykrige unavailable, basic Ordinary Kriging fallback will be used:', String(e).slice(0, 300));
-    }
-    setProgress(88);
+    setProgress(80);
     setLoadMsg('stage4');
     creepTo(97);
     const pySrc = document.getElementById('py-src').textContent;
     pyodideInstance.runPython(pySrc);
     pyInterpolate = pyodideInstance.globals.get('interpolate');
-    const riProxy = pyodideInstance.globals.get('runtime_info');
-    const info = JSON.parse(riProxy());
-    riProxy.destroy();
-    state.scipyOK = info.scipy;
-    state.pykrige = info.pykrige;
     // warm-up call so the first real computation is snappy
     try {
-      pyInterpolate(JSON.stringify(SAMPLE_DATA.slice(0, 6)), state.scipyOK ? 'linear' : 'idw', 12, 2, '');
+      pyInterpolate(JSON.stringify(SAMPLE_DATA.slice(0, 6)), 'kriging', 12, 2, '');
     } catch (e) { console.warn('warmup failed', e); }
     state.pyReady = true;
     finishLoading();
@@ -2006,6 +2109,7 @@ els.btnAddRow.addEventListener('click', () => {
 els.btnSample.addEventListener('click', loadSample);
 els.btnEmptySample.addEventListener('click', loadSample);
 function loadSample() {
+  clearRepeats();
   state.points = SAMPLE_DATA.map(makeRow);
   els.oelInput.value = SAMPLE_OEL;
   els.fieldW.value = SAMPLE_FIELD[0];
@@ -2024,6 +2128,7 @@ els.csvFile.addEventListener('change', () => {
 [els.fieldW, els.fieldH].forEach((el) => el.addEventListener('input', () => {
   if (!state.floorplan.custom) fpResetRect();
   updateStatus();
+  updateGridReadout();
   scheduleRecompute(900);
 }));
 els.methodSelect.addEventListener('change', () => {
@@ -2037,10 +2142,23 @@ els.powerSlider.addEventListener('input', () => {
   els.powerVal.textContent = state.power.toFixed(1);
   scheduleRecompute(450);
 });
+function updateGridReadout() {
+  const n = state.gridN;
+  const fd = fieldDims();
+  let nx = n, ny = n, cell = null;
+  if (fd) {
+    const [W, H] = fd;
+    if (W >= H) { nx = n; ny = Math.max(10, Math.round(n * H / W)); }
+    else { ny = n; nx = Math.max(10, Math.round(n * W / H)); }
+    cell = Math.max(W / (nx - 1), H / (ny - 1));
+  }
+  els.gridVal.textContent = nx;
+  els.gridVal2.textContent = ny;
+  els.gridCell.textContent = cell ? `≈ ${cell < 1 ? cell.toFixed(2) : cell.toFixed(1)} m/格` : '';
+}
 els.gridSlider.addEventListener('input', () => {
   state.gridN = parseInt(els.gridSlider.value, 10);
-  els.gridVal.textContent = state.gridN;
-  els.gridVal2.textContent = state.gridN;
+  updateGridReadout();
   scheduleRecompute(450);
 });
 els.unitInput.addEventListener('input', () => { if (state.hasResult) renderPlot(); });
@@ -2057,6 +2175,27 @@ els.contourOpacity.addEventListener('input', () => {
 });
 els.fontColor.addEventListener('input', () => {
   state.chart.fontColor = els.fontColor.value;
+  if (state.hasResult) renderPlot();
+});
+els.btnRotate.addEventListener('click', () => {
+  state.rotation = (state.rotation + 90) % 360;
+  updateRotateUI();
+  if (state.hasResult) renderPlot();
+});
+function updateRotateUI() {
+  els.rotateVal.textContent = state.rotation ? ` ${state.rotation}°` : '';
+  els.btnRotate.classList.toggle('ring-1', !!state.rotation);
+  els.btnRotate.classList.toggle('ring-sky-300', !!state.rotation);
+  // 底圖位置編輯之座標換算不含旋轉，旋轉時暫停編輯
+  if (state.rotation && fpEditorOn) setFpEditor(false);
+  updateFpButtons();
+}
+els.repeatMode.addEventListener('change', () => {
+  state.repeatMode = els.repeatMode.value;
+  applyRepeatMode();
+});
+els.showLabels.addEventListener('change', () => {
+  state.chart.showLabels = els.showLabels.checked;
   if (state.hasResult) renderPlot();
 });
 els.fontSize.addEventListener('input', () => {
@@ -2087,6 +2226,12 @@ els.fpOpacity.addEventListener('input', () => {
 });
 els.btnPng.addEventListener('click', downloadPng);
 els.btnCsvDl.addEventListener('click', downloadGridCsv);
+els.btnUploadXlsx.addEventListener('click', () => els.xlsxFile.click());
+els.xlsxFile.addEventListener('change', () => {
+  if (els.xlsxFile.files[0]) handleXlsxFile(els.xlsxFile.files[0]);
+  els.xlsxFile.value = '';
+});
+els.btnExportXlsx.addEventListener('click', exportStandardTable);
 els.bannerClose.addEventListener('click', hideBanner);
 els.langToggle.addEventListener('click', () => {
   state.lang = state.lang === 'zh' ? 'en' : 'zh';
@@ -2123,6 +2268,7 @@ window.addEventListener('resize', () => {
 state.points = [makeRow(), makeRow(), makeRow(), makeRow()];
 renderTable();
 buildSwatches();
+updateGridReadout();
 applyI18n();
 initPyodide();
 </script>

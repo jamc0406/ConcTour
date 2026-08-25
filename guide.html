@@ -52,10 +52,11 @@
         <li><b>輸入測點資料</b>：在表格直接輸入座標與濃度、點「上傳 CSV」匯入（自動辨識 <code>x</code>、<code>y</code>、<code>c</code>／<code>concentration</code>／<code>濃度</code> 欄位），或點「載入範例資料」試用。</li>
         <li><b>資料品質檢核（QAQC）</b>：系統自動<b>排除</b> 0 值、負值與超出場域範圍之測點（淡黃底標示）。疑似異常高值（大於 Q3＋3×IQR）會以 <b>⚠</b> 標記並<b>預設納入</b>計算；您可<b>點擊該 ⚠ 圖示自行決定排除或重新納入</b>，圖面與統計會即時更新。</li>
         <li><b>檢視數理統計</b>：圖表下方的統計框顯示樣本數、最小／最大值、算術平均、中位數、標準差、幾何平均（GM）、幾何標準差（GSD）與超過 OEL 之測點數，均以通過 QAQC（含您的異常值決定）之測點計算。</li>
-        <li><b>選擇插值方法與參數</b>：五種方法各有適用情境（見下表）；可調整網格解析度、濃度單位與 OEL 閾值。</li>
-        <li><b>圖表設定</b>：自訂標題、色階（點選色階圖示）、<b>分佈圖不透明度</b>、標註字體顏色與大小、濃度點大小。</li>
+        <li><b>參數設定</b>：插值方法固定為普通克利金（見下節），使用者無須選擇；可調整網格解析度、濃度單位與 OEL 閾值。網格依場域長寬比配置、格點恆為正方形，滑桿數值為<b>長邊格數</b>，旁側顯示對應之公尺／格。</li>
+        <li><b>圖表設定</b>：色階（預設 Jet，點選色階圖示更換）、<b>分佈圖不透明度</b>、是否於圖上顯示各測點濃度值、標註字體顏色與大小、濃度點大小、PNG 匯出長邊像素。圖表標題位於側欄最上方。</li>
         <li><b>平面圖（選用）</b>：上傳 PNG／JPG 平面圖，預設自動縮放至場域大小；點「調整位置與大小」後，可直接在圖面上拖移藍框、拉動四角縮放，再點一次完成。若疊圖看不清楚，於「圖表設定」<b>調低分佈圖不透明度</b>即可讓底圖透出。</li>
-        <li><b>產生與匯出</b>：點「產生分佈圖」繪製結果，再以「下載 PNG」或「下載網格 CSV」匯出。</li>
+        <li><b>旋轉圖面</b>：圖下方之「旋轉 90°」可將圖面依序轉 90°／180°／270°／回正。旋轉僅改變呈現方向，座標軸刻度仍為原始 X／Y 值，下載之網格 CSV 亦維持原始座標；狹長場域轉為橫向後較適合放入報告版面。旋轉狀態下無法調整底圖位置，請先轉回 0°。</li>
+        <li><b>產生與匯出</b>：點「產生分佈圖」繪製結果，再以「下載 PNG」或「下載網格 CSV」匯出。PNG 畫布依場域長寬比自動裁切，狹長場域不會留下大片空白；以「PNG 長邊像素」調整輸出大小，側欄同步顯示實際畫布尺寸。</li>
       </ol>
 
       <h2>介面操作小技巧</h2>
@@ -64,25 +65,34 @@
         <li><b>圖面縮放</b>：在圖上滾動滑鼠滾輪即可平順縮放（以游標位置為中心）；按住拖曳可平移；<b>雙擊</b>圖面可回到完整場域範圍。</li>
       </ul>
 
-      <h2>插值方法比較</h2>
+      <h2>插值方法</h2>
+      <p>本工具一律採用<b>普通克利金法（ordinary kriging）</b>，變異函數固定如下，不提供其他方法或參數選項：</p>
       <table>
-        <thead><tr><th>方法</th><th>優點</th><th>限制</th><th>建議使用情境</th></tr></thead>
+        <thead><tr><th>參數</th><th>設定值</th><th>理由</th></tr></thead>
         <tbody>
-          <tr><td><b>IDW</b><br>反距離加權</td><td>快速穩定；結果必落在實測值範圍內</td><td>易出現「靶心」同心圓；無法估計高於／低於所有測點之值</td><td>測點少（4–10 點）或需快速概覽</td></tr>
-          <tr><td><b>線性 Linear</b></td><td>直觀、測點處完全吻合、不外推</td><td>凸包外以最近值填補；曲面有稜角</td><td>測點均勻涵蓋全區、希望保守呈現</td></tr>
-          <tr><td><b>RBF</b><br>薄板樣條</td><td>曲面平滑、適合不規則散佈</td><td>可能過衝（超出實測範圍）；點多時較慢</td><td>10–100 點、濃度場預期平滑連續</td></tr>
-          <tr><td><b>Spline</b><br>雙三次樣條</td><td>對網格狀佈點可得很平滑曲面</td><td>需先彙整為規則網格；少於 16 點自動改用 RBF</td><td>系統性網格佈點且點數較多</td></tr>
-          <tr><td><b>Kriging</b><br>普通克利金</td><td>地統計最佳線性無偏估計，考慮空間自相關</td><td>點少時半變異圖不可靠；計算量較大</td><td>測點 ≥ 15 且具空間相關性、需正式估計</td></tr>
+          <tr><td>變異函數模式</td><td>線性 linear</td><td>不需由資料估計基台與變程，測點少時仍可穩定求解</td></tr>
+          <tr><td>斜率 slope</td><td>1.0</td><td>金塊效應為零時，克利金權重與斜率數值無關，故可固定</td></tr>
+          <tr><td>金塊效應 nugget</td><td>0.0</td><td>金塊效應不為零時曲面於測點處不連續，將系統性低估濃度峰值</td></tr>
+          <tr><td>異方性比</td><td>1.0</td><td>不預設方向性；作業場所之氣流方向多變且未必已知</td></tr>
         </tbody>
       </table>
-      <p class="mt-2 text-[13px] text-slate-500">註：瀏覽器版 Pyodide 無法安裝 <code>pykrige</code> 時，工具自動改用內建純 Python 普通克利金（球型半變異模型），介面標示「Kriging（基礎實作 / basic implementation）」。</p>
+
+      <h2>標準資料表</h2>
+      <p>除手動輸入與 CSV 之外，本工具可直接讀寫本研究之「濃度分佈測量標準資料表」（Excel）：</p>
+      <ul>
+        <li><b>上傳標準資料表</b>：自動讀取分頁「基本資料與量測濃度」，帶入場域尺寸、污染物名稱與單位，並載入全部測點座標與濃度。c1～c3 有多次量測者取其平均；備註註明「&lt;LOD」者以偵測極限除以根號 2 代入；無有效濃度者略過並於訊息列告知筆數。</li>
+        <li><b>匯出標準資料表</b>：將目前場域尺寸與表格內容輸出為同格式之 Excel 檔，可供留存或交付他人。</li>
+        <li><b>重複量測（c1–c3）</b>：匯入之資料表若有兩欄以上填有數值，側欄會出現「重複量測之取值」選單。<b>預設取算術平均</b>，用於降低儀器讀值之隨機誤差；欲檢視單一時段可選「僅量測 1／2／3」，欲作保守判讀可選「最大值」。備註為 <code>&lt;LOD</code> 之測點於各方式下皆以偵測極限 ÷ √2 代入；該次無讀值之測點則自動排除，選單下方會顯示排除點數。手動修改表格中的濃度值後，此選單即失效。</li>
+      </ul>
+      <p class="mt-2 text-[13px] text-slate-500">標準資料表之座標原點固定於場域左下角，X 向右、Y 向上，單位公尺；一份檔案僅存放一種污染物。空白模板詳報告附錄。</p>
 
       <h2>注意事項</h2>
       <ul>
         <li>所有運算皆於瀏覽器內完成，測量資料與平面圖不會上傳。</li>
         <li>測點涵蓋範圍以外（凸包外）之估計屬外插，不確定性較高，解讀應謹慎。</li>
         <li>插值結果以 0 為下限（濃度不可能為負值）。</li>
-        <li>OEL 紅色超標區僅供視覺參考，不構成法規合規判定。詳見工具內「關於我們」之免責聲明。</li>
+        <li>測點間距若超過濃度場空間相關距離之一半，插值結果之可信度將顯著下降，部分場域甚至不優於直接採用全場平均值。應就圖面結果與現場實況相互對照。</li>
+        <li>OEL 等值線僅供視覺參考，不構成法規合規判定。詳見工具內「關於我們」之免責聲明。</li>
       </ul>
     </article>
 
@@ -95,13 +105,15 @@
       <ol>
         <li><b>Wait for the runtime to load</b>: the first visit downloads ~40 MB (15–30 s); later visits are cached. The dot in the top-right turns green when ready.</li>
         <li><b>Set the field size</b>: enter the workplace width (X) and height (Y) in meters. The map always uses this extent and aspect ratio; the origin (0,0) is the bottom-left corner.</li>
-        <li><b>Enter measurement data</b>: type into the table, upload a CSV (columns <code>x</code>, <code>y</code>, <code>c</code>/<code>concentration</code>/<code>濃度</code> are auto-detected), or load the sample dataset.</li>
+        <li><b>Enter measurement data</b>: type into the table, upload a CSV (columns <code>x</code>, <code>y</code>, <code>c</code>/<code>concentration</code>/<code>濃度</code> are auto-detected), upload the standard data table (Excel), or load the sample dataset.</li>
         <li><b>Data QA/QC</b>: zero values, negatives, and points outside the field are <b>excluded automatically</b> (pale-yellow rows). Suspected high outliers (above Q3 + 3×IQR) are flagged with <b>⚠</b> and <b>included by default</b>; <b>click the ⚠ icon to exclude or re-include</b> each one — the map and statistics update instantly.</li>
         <li><b>Review statistics</b>: the box below the plot shows n, min/max, mean, median, SD, geometric mean (GM), geometric SD (GSD), and the count above the OEL, all computed on the QA/QC-passed points (reflecting your outlier choices).</li>
         <li><b>Choose a method and parameters</b>: five interpolation methods (see table), grid resolution, unit, and an optional OEL threshold.</li>
         <li><b>Chart settings</b>: title, color scale (click a swatch), <b>contour opacity</b>, label font color/size, and marker size.</li>
+        <li><b>Chart settings</b>: colour scale (Jet by default), contour opacity, whether to print the concentration value at each point, label colour and size, marker size, and PNG export size. The map title sits at the top of the sidebar.</li>
         <li><b>Floor plan (optional)</b>: upload a PNG/JPG plan — scaled to the field size by default. Click "Adjust position &amp; size" to drag the blue box and pull its corners on the plot; click again to finish. If the overlay is unclear, <b>lower the contour opacity</b> under "Chart Settings".</li>
-        <li><b>Generate &amp; export</b>: click "Generate Map", then download the PNG image or the interpolated grid CSV.</li>
+        <li><b>Rotate</b>: the "Rotate 90°" button below the plot steps through 90°/180°/270°/back to 0°. Rotation only changes the display orientation — axis ticks keep the original X/Y values and the exported grid CSV stays in original coordinates. Floor-plan positioning is disabled while rotated; return to 0° first.</li>
+        <li><b>Generate &amp; export</b>: click "Generate Map", then download the PNG image or the interpolated grid CSV. The PNG canvas is sized to the field aspect ratio, so elongated fields no longer export with large empty margins; set the output size with "PNG long edge (px)".</li>
       </ol>
 
       <h2>Interface tips</h2>
@@ -110,25 +122,33 @@
         <li><b>Zoom the plot</b>: scroll the mouse wheel over the plot for smooth, cursor-centered zoom; drag to pan; <b>double-click</b> to return to the full field extent.</li>
       </ul>
 
-      <h2>Interpolation methods</h2>
+      <h2>Interpolation method</h2>
+      <p>The tool always uses <b>ordinary kriging</b> with the variogram fixed as below. No other method or parameter is offered.</p>
       <table>
-        <thead><tr><th>Method</th><th>Strengths</th><th>Limitations</th><th>Recommended use</th></tr></thead>
+        <thead><tr><th>Parameter</th><th>Value</th><th>Why</th></tr></thead>
         <tbody>
-          <tr><td><b>IDW</b></td><td>Fast, robust; results stay within the measured range</td><td>"Bullseye" rings; cannot estimate beyond min/max</td><td>Few points (4–10) or quick overviews</td></tr>
-          <tr><td><b>Linear</b></td><td>Intuitive; exact at points; no extrapolation</td><td>Outside the hull filled with nearest values; faceted</td><td>Even coverage; conservative presentation</td></tr>
-          <tr><td><b>RBF</b></td><td>Smooth surface; good for scattered points</td><td>May overshoot the measured range; slower at scale</td><td>10–100 points; smooth continuous field</td></tr>
-          <tr><td><b>Spline</b></td><td>Very smooth over grid-like layouts</td><td>Bins to a regular grid; &lt;16 points falls back to RBF</td><td>Systematic grid sampling with more points</td></tr>
-          <tr><td><b>Kriging</b></td><td>Geostatistical BLUE; accounts for spatial correlation</td><td>Unreliable variogram with few points; heavier compute</td><td>≥15 spatially-correlated points; formal estimates</td></tr>
+          <tr><td>Variogram model</td><td>linear</td><td>No sill or range has to be estimated, so the solution stays stable with few points</td></tr>
+          <tr><td>Slope</td><td>1.0</td><td>With a zero nugget the kriging weights do not depend on the slope, so it can be fixed</td></tr>
+          <tr><td>Nugget</td><td>0.0</td><td>A non-zero nugget makes the surface discontinuous at the measured points and systematically flattens the peak</td></tr>
+          <tr><td>Anisotropy ratio</td><td>1.0</td><td>No directional preference assumed; airflow direction in workplaces varies and is often unknown</td></tr>
         </tbody>
       </table>
-      <p class="mt-2 text-[13px] text-slate-500">Note: when <code>pykrige</code> cannot be installed under Pyodide, the tool falls back to a built-in pure-Python Ordinary Kriging (spherical variogram), labeled "Kriging (basic implementation)".</p>
+
+      <h2>Standard data table</h2>
+      <p>Besides manual entry and CSV, the tool reads and writes the study's standard data table (Excel):</p>
+      <ul>
+        <li><b>Upload standard table</b>: reads the sheet 基本資料與量測濃度, fills in the field dimensions, pollutant name and unit, and loads every point. Where c1–c3 hold repeat measurements their mean is used; a point whose note says &lt;LOD is substituted with LOD/&radic;2; points with no valid concentration are skipped and the count reported.</li>
+        <li><b>Export standard table</b>: writes the current field size and table contents back out in the same format.</li>
+      </ul>
+      <p class="mt-2 text-[13px] text-slate-500">The origin is fixed at the lower-left corner of the field, x to the right and y upward, in metres; one file holds one pollutant.</p>
 
       <h2>Notes</h2>
       <ul>
         <li>All computation runs in the browser; measurement data and floor plans are never uploaded.</li>
         <li>Estimates outside the convex hull are extrapolations with higher uncertainty — interpret with caution.</li>
         <li>Interpolated values are floored at 0 (concentrations cannot be negative).</li>
-        <li>The red OEL exceedance zone is a visual aid only, not a compliance determination. See the full disclaimer under "About" in the tool.</li>
+        <li>Once the point spacing exceeds half the spatial correlation distance of the field, the result becomes markedly less reliable — in some fields no better than using the field mean. Always check the map against conditions on site.</li>
+        <li>The OEL contour is a visual aid only, not a compliance determination. See the full disclaimer under "About" in the tool.</li>
       </ul>
     </article>
 
