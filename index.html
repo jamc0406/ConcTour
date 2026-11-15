@@ -64,6 +64,17 @@
   .fp-handle[data-dir="ne"] { right: -7px; top: -7px; cursor: nesw-resize; }
   .fp-handle[data-dir="sw"] { left: -7px; bottom: -7px; cursor: nesw-resize; }
   .fp-handle[data-dir="se"] { right: -7px; bottom: -7px; cursor: nwse-resize; }
+  .fp-handle[data-dir="n"] { left: calc(50% - 7px); top: -7px; cursor: ns-resize; }
+  .fp-handle[data-dir="s"] { left: calc(50% - 7px); bottom: -7px; cursor: ns-resize; }
+  .fp-handle[data-dir="e"] { right: -7px; top: calc(50% - 7px); cursor: ew-resize; }
+  .fp-handle[data-dir="w"] { left: -7px; top: calc(50% - 7px); cursor: ew-resize; }
+  /* crop mode: dim everything outside the kept region */
+  #fp-editor.crop { border-color: #f59e0b; background: transparent; box-shadow: 0 0 0 9999px rgba(15,23,42,.45); }
+  #fp-editor.crop .fp-handle { border-color: #d97706; }
+  #fp-editor.crop #fp-editor-label { background: #b45309; }
+  #plot-scroll { overscroll-behavior: contain; }
+  #plot-scroll.panning { cursor: grabbing; }
+  #plot-stage { margin: auto; }
   /* Desktop: fixed-position sidebar, width-resizable via the right-edge grip only */
   @media (min-width: 768px) {
     #app-root { display: flex; }
@@ -285,10 +296,8 @@
             <div class="flex justify-between text-[10px] text-slate-400"><span>1.0</span><span>4.0</span></div>
           </div>
           <div>
-            <label class="side-label" for="grid-slider"><span data-i18n="lbl_grid">網格解析度</span>: <span id="grid-val" class="font-mono text-sky-800">120</span> × <span id="grid-val2" class="font-mono text-sky-800">120</span>　<span id="grid-cell" class="font-mono text-slate-400"></span></label>
-            <input type="range" id="grid-slider" min="40" max="400" step="20" value="120" class="w-full">
-            <p class="mt-0.5 text-[10.5px] leading-snug text-slate-400" data-i18n="grid_hint">網格依場域長寬比配置，格點為正方形；數值為長邊之格數。</p>
-            <div class="flex justify-between text-[10px] text-slate-400"><span>50</span><span>100</span><span>150</span><span>200</span></div>
+            <label class="side-label"><span data-i18n="lbl_grid">網格解析度</span>: <span class="font-mono text-sky-800">0.1 m</span>　<span id="grid-cell" class="font-mono text-slate-400"></span></label>
+            <p class="text-[10.5px] leading-snug text-slate-400" data-i18n="grid_hint">固定每格 0.1 m × 0.1 m（正方形格點），不需調整。</p>
           </div>
           <div class="grid grid-cols-2 gap-2.5">
             <div>
@@ -313,6 +322,27 @@
           <div>
             <label class="side-label"><span data-i18n="lbl_colorscale">色階</span>: <span id="colorscale-name" class="font-mono text-sky-800">Jet</span></label>
             <div id="colorscale-swatches" class="flex gap-1.5"></div>
+          </div>
+          <div>
+            <label class="side-label" data-i18n="lbl_crange">濃度梯度範圍與分級</label>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <span class="mb-0.5 block text-[10.5px] text-slate-500" data-i18n="lbl_cmin">下限</span>
+                <input type="number" id="c-min" class="side-input" step="any" placeholder="自動" data-i18n-ph="ph_auto">
+              </div>
+              <div>
+                <span class="mb-0.5 block text-[10.5px] text-slate-500" data-i18n="lbl_cmax">上限</span>
+                <input type="number" id="c-max" class="side-input" step="any" placeholder="自動" data-i18n-ph="ph_auto">
+              </div>
+              <div>
+                <span class="mb-0.5 block text-[10.5px] text-slate-500" data-i18n="lbl_clevels">分區數</span>
+                <input type="number" id="c-levels" class="side-input" min="2" max="40" step="1" value="10">
+              </div>
+            </div>
+            <div class="mt-1 flex items-start gap-2">
+              <p id="c-range-info" class="flex-1 text-[10.5px] leading-snug text-slate-400"></p>
+              <button type="button" id="btn-c-auto" class="shrink-0 text-[11px] font-semibold text-sky-700 hover:underline" data-i18n="btn_c_auto">恢復自動</button>
+            </div>
           </div>
           <div>
             <label class="side-label" for="contour-opacity"><span data-i18n="lbl_contour_opacity">分佈圖不透明度</span>: <span id="contour-opacity-val" class="font-mono text-sky-800">100%</span></label>
@@ -365,9 +395,14 @@
               <span id="btn-fp-adjust-label" data-i18n="fp_adjust">調整位置與大小</span>
             </button>
             <button type="button" id="btn-fp-reset" class="btn-secondary" disabled data-i18n="fp_reset">重設為場域大小</button>
+            <button type="button" id="btn-fp-crop" class="btn-secondary" disabled>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 2v14a2 2 0 0 0 2 2h14"/><path d="M18 22V8a2 2 0 0 0-2-2H2"/></svg>
+              <span id="btn-fp-crop-label" data-i18n="fp_crop">裁切底圖</span>
+            </button>
+            <button type="button" id="btn-fp-uncrop" class="btn-secondary" disabled data-i18n="fp_uncrop">取消裁切</button>
           </div>
           <button type="button" id="btn-fp-remove" class="btn-secondary w-full !text-red-600 hover:!bg-red-50" disabled data-i18n="btn_fp_remove">移除平面圖</button>
-          <p class="text-[11px] leading-snug text-slate-400" data-i18n="fp_hint">平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。</p>
+          <p class="text-[11px] leading-snug text-slate-400" data-i18n="fp_hint">平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放，點「裁切底圖」可拖曳藍框邊緣只保留需要的範圍。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。</p>
         </div>
       </section>
 
@@ -392,7 +427,29 @@
     </div>
 
     <div id="plot-wrap" class="relative min-h-0 flex-1 rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div id="plot" class="absolute inset-0"></div>
+      <div id="plot-scroll" class="absolute inset-0 flex overflow-auto rounded-xl">
+        <div id="plot-stage" class="relative">
+          <div id="plot"></div>
+          <!-- floor-plan on-plot editor -->
+          <div id="fp-editor" class="absolute z-[9] hidden cursor-move border-2 border-dashed border-sky-600/90 bg-sky-400/10">
+            <span id="fp-editor-label" class="absolute -top-6 left-0 whitespace-nowrap rounded bg-sky-700 px-1.5 py-0.5 font-mono text-[10px] text-white"></span>
+            <div class="fp-handle" data-dir="nw"></div>
+            <div class="fp-handle" data-dir="ne"></div>
+            <div class="fp-handle" data-dir="sw"></div>
+            <div class="fp-handle" data-dir="se"></div>
+            <div class="fp-handle" data-dir="n"></div>
+            <div class="fp-handle" data-dir="s"></div>
+            <div class="fp-handle" data-dir="e"></div>
+            <div class="fp-handle" data-dir="w"></div>
+          </div>
+        </div>
+      </div>
+      <div id="zoom-ctl" class="absolute bottom-2 right-2 z-[8] hidden items-center gap-1 rounded-lg border border-slate-200 bg-white/95 px-1.5 py-1 shadow-sm">
+        <button type="button" id="btn-zoom-out" class="h-6 w-6 rounded text-[15px] font-bold leading-none text-slate-600 hover:bg-slate-100" title="縮小 / Zoom out">−</button>
+        <span id="zoom-val" class="w-11 text-center font-mono text-[11px] text-slate-600">100%</span>
+        <button type="button" id="btn-zoom-in" class="h-6 w-6 rounded text-[15px] font-bold leading-none text-slate-600 hover:bg-slate-100" title="放大 / Zoom in">+</button>
+        <button type="button" id="btn-zoom-fit" class="rounded px-1.5 py-0.5 text-[11px] font-semibold text-sky-700 hover:bg-sky-50" data-i18n="zoom_fit">符合視窗</button>
+      </div>
       <div id="plot-empty" class="absolute inset-0 z-[5] flex flex-col items-center justify-center gap-3 rounded-xl bg-white text-center">
         <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round">
           <path d="M3 17c3-6 6-9 9-9s6 3 9 9"/><path d="M5 20c2.4-4 4.7-6 7-6s4.6 2 7 6"/><circle cx="7" cy="7" r="1.6" fill="#cbd5e1" stroke="none"/>
@@ -400,14 +457,6 @@
         <p class="text-sm font-semibold text-slate-500" data-i18n="empty_title">尚無分佈圖</p>
         <p class="max-w-xs px-4 text-xs leading-relaxed text-slate-400" data-i18n="empty_hint">設定場域尺寸並輸入測點資料後點擊「產生分佈圖」，或先載入範例資料試用。</p>
         <button type="button" id="btn-empty-sample" class="btn-secondary !border-sky-200 !text-sky-800 hover:!bg-sky-50" data-i18n="btn_sample">載入範例資料</button>
-      </div>
-      <!-- floor-plan on-plot editor -->
-      <div id="fp-editor" class="absolute z-[9] hidden cursor-move border-2 border-dashed border-sky-600/90 bg-sky-400/10">
-        <span id="fp-editor-label" class="absolute -top-6 left-0 whitespace-nowrap rounded bg-sky-700 px-1.5 py-0.5 font-mono text-[10px] text-white"></span>
-        <div class="fp-handle" data-dir="nw"></div>
-        <div class="fp-handle" data-dir="ne"></div>
-        <div class="fp-handle" data-dir="sw"></div>
-        <div class="fp-handle" data-dir="se"></div>
       </div>
       <div id="plot-busy" class="absolute inset-0 z-10 hidden items-center justify-center rounded-xl bg-white/70">
         <div class="flex items-center gap-3 rounded-full border border-slate-200 bg-white px-4 py-2.5 shadow">
@@ -647,22 +696,30 @@ def _interpolate_impl(points_json, method, grid_n, power, bounds_json=""):
             "測點需同時在 X 與 Y 方向上有分佈",
             "Points must span both the X and Y directions",
         )
-    grid_n = int(min(500, max(20, int(grid_n))))
     power = float(min(8.0, max(0.5, float(power))))
     bounds = _parse_bounds(bounds_json)
     if bounds is None:
         bounds = (float(x.min()), float(x.max()), float(y.min()), float(y.max()))
     bx0, bx1, by0, by1 = bounds
-    # 網格依場域長寬比配置：長邊 grid_n 格，短邊按比例，使格點為正方形。
-    # 固定 grid_n × grid_n 於狹長場域會產生極度扁平之格點，等值線因而失真。
+    # 網格固定 0.1 m 一格（正方形格點）。僅於格點總數超過上限時
+    # （超大場域，避免瀏覽器記憶體不足）自動放寬為 0.2 / 0.5 / 1 m…，並回報實際格距。
     span_x = max(bx1 - bx0, 1e-9)
     span_y = max(by1 - by0, 1e-9)
-    if span_x >= span_y:
-        nx = grid_n
-        ny = max(10, int(round(grid_n * span_y / span_x)))
-    else:
-        ny = grid_n
-        nx = max(10, int(round(grid_n * span_x / span_y)))
+    try:
+        cell = float(grid_n)
+    except Exception:
+        cell = 0.1
+    if not math.isfinite(cell) or cell <= 0:
+        cell = 0.1
+    MAX_NODES = 1_000_000
+    steps = [cell] + [c for c in (0.2, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0) if c > cell]
+    for cell in steps:
+        nx = int(round(span_x / cell)) + 1
+        ny = int(round(span_y / cell)) + 1
+        if nx * ny <= MAX_NODES:
+            break
+    nx = max(nx, 2)
+    ny = max(ny, 2)
     gx = np.linspace(bx0, bx1, nx)
     gy = np.linspace(by0, by1, ny)
     GX, GY = np.meshgrid(gx, gy)
@@ -688,8 +745,9 @@ def _interpolate_impl(points_json, method, grid_n, power, bounds_json=""):
     Zr = np.round(Z, 6)
     z_list = np.where(finite, Zr, None).tolist()
     return {
-        "grid_x": np.round(GX, 4).tolist(),
-        "grid_y": np.round(GY, 4).tolist(),
+        "gx": np.round(gx, 4).tolist(),
+        "gy": np.round(gy, 4).tolist(),
+        "cell": cell,
         "grid_z": z_list,
         "x_range": [bx0, bx1],
         "y_range": [by0, by1],
@@ -780,14 +838,22 @@ const I18N = {
     rep_3: '僅量測 3', rep_max: '最大值（保守）',
     rep_hint_head: '各次有效點數：', rep_hint_blank: '點於此取值方式下無資料，已排除',
     msg_points_n: '點',
-    grid_hint: '網格依場域長寬比配置，格點為正方形；數值為長邊之格數。',
+    grid_hint: '固定每格 0.1 m × 0.1 m（正方形格點），不需調整。',
+    grid_coarse: '場域過大，格點已自動放寬為 {c} m 以避免瀏覽器記憶體不足',
+    lbl_crange: '濃度梯度範圍與分級', lbl_cmin: '下限', lbl_cmax: '上限', lbl_clevels: '分區數',
+    ph_auto: '自動', btn_c_auto: '恢復自動',
+    c_range_info: '每區間距 {s}；空白為自動（依插值結果）。超出範圍者以兩端顏色顯示。',
+    c_range_bad: '上限須大於下限，暫以自動範圍顯示。',
+    zoom_fit: '符合視窗',
+    fp_crop: '裁切底圖', fp_crop_done: '完成裁切', fp_uncrop: '取消裁切',
+    fp_crop_chip: '拖曳橘框邊緣或四角選取要保留的範圍，拖曳框內可平移；完成後點「完成裁切」',
     lbl_contour_opacity: '分佈圖不透明度', contour_opacity_hint: '疊加平面圖時可調低此值，使底圖更清楚。',
     lbl_font_color: '標註字色', lbl_font_size: '字級', lbl_marker_size: '點大小',
     lbl_fp_file: '上傳平面圖（PNG / JPG）', lbl_fp_opacity: '底圖不透明度',
     btn_fp_remove: '移除平面圖', fp_none: '尚未選擇圖片',
     fp_adjust: '調整位置與大小', fp_adjust_done: '完成調整', fp_reset: '重設為場域大小',
-    fp_hint: '平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。',
-    fp_edit_chip: '拖曳藍框移動平面圖，拉動四角縮放',
+    fp_hint: '平面圖預設縮放至場域大小；點「調整位置與大小」可直接在圖面上拖移與縮放，點「裁切底圖」可拖曳藍框邊緣只保留需要的範圍。若疊圖不清楚，可在「圖表設定」調低分佈圖不透明度。',
+    fp_edit_chip: '拖曳藍框移動平面圖，拉動四角或邊緣縮放',
     status_points: '有效測點', status_bbox: '資料範圍',
     stats_hint_short: '基於通過 QAQC 之測點（GM／GSD 為幾何平均／幾何標準差）',
     stat_n: '樣本數', stat_min: '最小值', stat_max: '最大值', stat_am: '平均 AM',
@@ -854,14 +920,22 @@ const I18N = {
     rep_2: 'Run 2 only', rep_3: 'Run 3 only', rep_max: 'Maximum (conservative)',
     rep_hint_head: 'Valid points per run: ', rep_hint_blank: 'point(s) have no value in this mode and are excluded',
     msg_points_n: 'pts',
-    grid_hint: 'The grid follows the field aspect ratio so cells stay square; the value is the cell count along the long edge.',
+    grid_hint: 'Fixed at 0.1 m × 0.1 m square cells; no adjustment needed.',
+    grid_coarse: 'Field is very large: grid coarsened to {c} m to stay within browser memory',
+    lbl_crange: 'Concentration range & classes', lbl_cmin: 'Min', lbl_cmax: 'Max', lbl_clevels: 'Classes',
+    ph_auto: 'Auto', btn_c_auto: 'Reset to auto',
+    c_range_info: 'Class width {s}; leave blank for auto (from the interpolated result). Values outside the range use the end colours.',
+    c_range_bad: 'Max must be greater than min; using the automatic range for now.',
+    zoom_fit: 'Fit',
+    fp_crop: 'Crop floor plan', fp_crop_done: 'Done cropping', fp_uncrop: 'Remove crop',
+    fp_crop_chip: 'Drag the orange box edges or corners to choose the area to keep; drag inside to pan; then click "Done cropping"',
     lbl_contour_opacity: 'Contour opacity', contour_opacity_hint: 'Lower this when overlaying a floor plan so the plan shows through.',
     lbl_font_color: 'Label color', lbl_font_size: 'Font size', lbl_marker_size: 'Marker',
     lbl_fp_file: 'Upload Floor Plan (PNG / JPG)', lbl_fp_opacity: 'Floor Plan Opacity',
     btn_fp_remove: 'Remove Floor Plan', fp_none: 'No image selected',
     fp_adjust: 'Adjust position & size', fp_adjust_done: 'Done adjusting', fp_reset: 'Reset to field size',
-    fp_hint: 'The floor plan is scaled to the field size by default; click "Adjust position & size" to drag and resize it directly on the plot. If the overlay is unclear, lower the contour opacity under "Chart Settings".',
-    fp_edit_chip: 'Drag the blue box to move the plan; pull corners to resize',
+    fp_hint: 'The floor plan is scaled to the field size by default; click "Adjust position & size" to drag and resize it directly on the plot, or "Crop floor plan" to keep only the part you need. If the overlay is unclear, lower the contour opacity under "Chart Settings".',
+    fp_edit_chip: 'Drag the blue box to move the plan; pull corners or edges to resize',
     status_points: 'Valid points', status_bbox: 'Extent',
     stats_hint_short: 'Based on QA/QC-passed points (GM/GSD = geometric mean / geometric SD)',
     stat_n: 'n', stat_min: 'Min', stat_max: 'Max', stat_am: 'Mean',
@@ -915,10 +989,13 @@ const state = {
   points: [],                 // raw strings, {x,y,c, drop?}
   method: 'kriging',
   power: 2.0,
-  gridN: 120,
+  gridCell: 0.1,             // 網格固定 0.1 m
+  zoom: 1,                   // 預覽縮放（僅改變圖面顯示大小，座標軸範圍固定為場域）
+  crange: { min: null, max: null, levels: 10 },
   colorscale: 'Jet',
   chart: { fontColor: '#0f172a', fontSize: 10, markerSize: 7, contourOpacity: 100, showLabels: true },
-  floorplan: { dataUrl: null, name: '', opacity: 60, x0: 0, y0: 0, w: 20, h: 15, custom: false },
+  floorplan: { dataUrl: null, name: '', opacity: 60, x0: 0, y0: 0, w: 20, h: 15, custom: false,
+               crop: { l: 0, r: 0, t: 0, b: 0 } },   // crop: 原圖四邊裁去之比例
   rotation: 0,            // 圖面顯示旋轉角度（0/90/180/270，僅影響呈現）
   repeats: null,          // 匯入標準資料表之 c1–c3 原始值
   repeatMode: 'mean',
@@ -932,7 +1009,7 @@ let pyodideInstance = null;
 let pyInterpolate = null;
 let recomputeTimer = null;
 let fpEditorOn = false;
-let fullRange = null;   // padded field range for double-click reset
+let fpCropOn = false;
 
 /* ================= DOM helpers ================= */
 const $ = (id) => document.getElementById(id);
@@ -943,7 +1020,10 @@ const els = {};
  'field-w','field-h','field-warn',
  'table-body','btn-add-row','btn-upload-csv','csv-file','btn-upload-xlsx','btn-export-xlsx','xlsx-file','btn-sample','pt-count','bbox-dims','warn-few','qaqc-summary',
  'stats-grid','stats-card',
- 'method-select','method-tip','method-help','power-row','power-slider','power-val','grid-slider','grid-val','grid-val2','grid-cell',
+ 'method-select','method-tip','method-help','power-row','power-slider','power-val','grid-cell',
+ 'c-min','c-max','c-levels','c-range-info','btn-c-auto',
+ 'plot-scroll','plot-stage','zoom-ctl','btn-zoom-out','btn-zoom-in','btn-zoom-fit','zoom-val',
+ 'btn-fp-crop','btn-fp-crop-label','btn-fp-uncrop',
  'unit-input','oel-input',
  'title-input','colorscale-swatches','colorscale-name','contour-opacity','contour-opacity-val',
  'show-labels','repeat-row','repeat-mode','repeat-hint',
@@ -973,7 +1053,10 @@ function applyI18n() {
   document.querySelectorAll('.modal-en').forEach((el) => el.classList.toggle('hidden', state.lang !== 'en'));
   els.langToggleLabel.textContent = state.lang === 'zh' ? 'EN' : '中文';
   document.documentElement.lang = state.lang === 'zh' ? 'zh-Hant' : 'en';
-  els.btnFpAdjustLabel.textContent = fpEditorOn ? t('fp_adjust_done') : t('fp_adjust');
+  els.btnFpAdjustLabel.textContent = fpEditorOn && !fpCropOn ? t('fp_adjust_done') : t('fp_adjust');
+  els.btnFpCropLabel.textContent = fpCropOn ? t('fp_crop_done') : t('fp_crop');
+  if (fpEditorOn) els.noteFpedit.textContent = 'ⓘ ' + t(fpCropOn ? 'fp_crop_chip' : 'fp_edit_chip');
+  updateCrangeInfo();
   rebuildMethodOptions();
   updateMethodHelp();
   updatePyStatus();
@@ -1488,6 +1571,7 @@ function handleFpFile(file) {
   reader.onload = () => {
     state.floorplan.dataUrl = reader.result;
     state.floorplan.name = file.name;
+    state.floorplan.crop = { l: 0, r: 0, t: 0, b: 0 };
     fpResetRect();
     els.fpName.textContent = file.name;
     els.fpName.classList.remove('text-slate-400');
@@ -1522,11 +1606,15 @@ function updateFpButtons() {
   const can = !!state.floorplan.dataUrl;
   els.btnFpRemove.disabled = !can;
   els.btnFpReset.disabled = !can;
-  els.btnFpAdjust.disabled = !(can && state.hasResult && !state.rotation);
+  const edit = can && state.hasResult && !state.rotation;
+  els.btnFpAdjust.disabled = !edit;
+  els.btnFpCrop.disabled = !edit;
+  els.btnFpUncrop.disabled = !(can && fpHasCrop());
   els.btnFpAdjust.title = state.rotation ? t('fp_rot_off') : '';
+  els.btnFpCrop.title = state.rotation ? t('fp_rot_off') : '';
 }
 
-/* ---- plot pixel <-> data mapping ---- */
+/* ---- plot pixel <-> data mapping (pixels relative to the plot / stage box) ---- */
 function plotAxes() {
   const fl = els.plot._fullLayout;
   if (!fl || !fl.xaxis || !fl.xaxis._length) return null;
@@ -1541,17 +1629,6 @@ function dataToPx(x, y) {
     A.ya._offset + ((y1 - y) / (y1 - y0)) * A.ya._length,
   ];
 }
-function pxToData(clientX, clientY) {
-  const A = plotAxes();
-  if (!A) return null;
-  const rect = els.plot.getBoundingClientRect();
-  const lx = clientX - rect.left, ly = clientY - rect.top;
-  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
-  return [
-    x0 + ((lx - A.xa._offset) / A.xa._length) * (x1 - x0),
-    y1 - ((ly - A.ya._offset) / A.ya._length) * (y1 - y0),
-  ];
-}
 function pxPerUnit() {
   const A = plotAxes();
   if (!A) return null;
@@ -1559,7 +1636,18 @@ function pxPerUnit() {
   return [A.xa._length / (x1 - x0), A.ya._length / (y1 - y0)];
 }
 
-/* ---- on-plot floor plan editor ---- */
+/* ---- on-plot floor plan editor：mode = 'adjust'（移動／縮放）或 'crop'（裁切） ---- */
+function fpFullRect() {
+  // 未裁切之完整底圖在資料座標中的矩形（由目前顯示範圍與裁切比例反推）
+  const fp = state.floorplan, c = fp.crop;
+  const FW = fp.w / Math.max(1e-6, 1 - c.l - c.r);
+  const FH = fp.h / Math.max(1e-6, 1 - c.t - c.b);
+  return { x0: fp.x0 - c.l * FW, y0: fp.y0 - c.b * FH, w: FW, h: FH };
+}
+function fpHasCrop() {
+  const c = state.floorplan.crop;
+  return c.l + c.r + c.t + c.b > 1e-6;
+}
 function syncFpEditor() {
   if (!fpEditorOn) return;
   const fp = state.floorplan;
@@ -1574,21 +1662,32 @@ function syncFpEditor() {
   els.fpEditorLabel.textContent =
     `${fp.w.toFixed(1)} × ${fp.h.toFixed(1)} m @ (${fp.x0.toFixed(1)}, ${fp.y0.toFixed(1)})`;
 }
-function setFpEditor(on) {
-  fpEditorOn = !!(on && state.floorplan.dataUrl && state.hasResult);
+function setFpEditor(on, mode = 'adjust') {
+  const was = fpEditorOn && fpCropOn;
+  fpEditorOn = !!(on && state.floorplan.dataUrl && state.hasResult && !state.rotation);
+  fpCropOn = fpEditorOn && mode === 'crop';
+  const adj = fpEditorOn && !fpCropOn;
   els.fpEditor.classList.toggle('hidden', !fpEditorOn);
-  els.btnFpAdjustLabel.textContent = fpEditorOn ? t('fp_adjust_done') : t('fp_adjust');
-  els.btnFpAdjust.classList.toggle('!bg-sky-700', fpEditorOn);
-  els.btnFpAdjust.classList.toggle('!text-white', fpEditorOn);
-  els.btnFpAdjust.classList.toggle('!border-sky-700', fpEditorOn);
-  els.noteFpedit.textContent = 'ⓘ ' + t('fp_edit_chip');
+  els.fpEditor.classList.toggle('crop', fpCropOn);
+  els.btnFpAdjustLabel.textContent = adj ? t('fp_adjust_done') : t('fp_adjust');
+  els.btnFpCropLabel.textContent = fpCropOn ? t('fp_crop_done') : t('fp_crop');
+  [[els.btnFpAdjust, adj], [els.btnFpCrop, fpCropOn]].forEach(([b, act]) => {
+    b.classList.toggle('!bg-sky-700', act);
+    b.classList.toggle('!text-white', act);
+    b.classList.toggle('!border-sky-700', act);
+  });
+  els.noteFpedit.textContent = 'ⓘ ' + t(fpCropOn ? 'fp_crop_chip' : 'fp_edit_chip');
   els.noteFpedit.classList.toggle('hidden', !fpEditorOn);
+  updateFpButtons();
+  // 進入／離開裁切模式時，底圖需在「完整原圖」與「裁切後影像」之間切換
+  if (state.hasResult && (was !== fpCropOn)) renderPlot();
   if (fpEditorOn) syncFpEditor();
 }
 let fpDrag = null;
 let fpRaf = 0;
 function requestFpRelayout() {
   syncFpEditor();
+  if (fpCropOn) return;            // 裁切時底圖顯示完整原圖，不需逐格重繪
   if (fpRaf) return;
   fpRaf = requestAnimationFrame(() => {
     fpRaf = 0;
@@ -1609,9 +1708,11 @@ els.fpEditor.addEventListener('pointerdown', (e) => {
     mode: handle ? handle.dataset.dir : 'move',
     sx: e.clientX, sy: e.clientY,
     orig: { ...state.floorplan },
+    full: fpFullRect(),
   };
   els.fpEditor.setPointerCapture(e.pointerId);
   e.preventDefault();
+  e.stopPropagation();
 });
 els.fpEditor.addEventListener('pointermove', (e) => {
   if (!fpDrag) return;
@@ -1620,25 +1721,81 @@ els.fpEditor.addEventListener('pointermove', (e) => {
   const dx = (e.clientX - fpDrag.sx) / ppu[0];
   const dy = -(e.clientY - fpDrag.sy) / ppu[1]; // screen down = data y down
   const o = fpDrag.orig, fp = state.floorplan, MIN = 0.5;
+  // 裁切模式：保留範圍限制在完整原圖內
+  const F = fpDrag.full;
+  const lim = fpCropOn
+    ? { xl: F.x0, xr: F.x0 + F.w, yb: F.y0, yt: F.y0 + F.h }
+    : { xl: -Infinity, xr: Infinity, yb: -Infinity, yt: Infinity };
   if (fpDrag.mode === 'move') {
-    fp.x0 = o.x0 + dx;
-    fp.y0 = o.y0 + dy;
+    fp.x0 = Math.min(Math.max(o.x0 + dx, lim.xl), lim.xr - o.w);
+    fp.y0 = Math.min(Math.max(o.y0 + dy, lim.yb), lim.yt - o.h);
   } else {
-    if (fpDrag.mode.includes('w')) {
-      const nx0 = Math.min(o.x0 + dx, o.x0 + o.w - MIN);
+    const m = fpDrag.mode;
+    if (m.includes('w')) {
+      const nx0 = Math.max(lim.xl, Math.min(o.x0 + dx, o.x0 + o.w - MIN));
       fp.w = o.w + (o.x0 - nx0); fp.x0 = nx0;
     }
-    if (fpDrag.mode.includes('e')) fp.w = Math.max(MIN, o.w + dx);
-    if (fpDrag.mode.includes('s')) {
-      const ny0 = Math.min(o.y0 + dy, o.y0 + o.h - MIN);
+    if (m.includes('e')) fp.w = Math.min(lim.xr - o.x0, Math.max(MIN, o.w + dx));
+    if (m.includes('s')) {
+      const ny0 = Math.max(lim.yb, Math.min(o.y0 + dy, o.y0 + o.h - MIN));
       fp.h = o.h + (o.y0 - ny0); fp.y0 = ny0;
     }
-    if (fpDrag.mode.includes('n')) fp.h = Math.max(MIN, o.h + dy);
+    if (m.includes('n')) fp.h = Math.min(lim.yt - o.y0, Math.max(MIN, o.h + dy));
+  }
+  if (fpCropOn) {
+    fp.crop = {
+      l: (fp.x0 - F.x0) / F.w,
+      r: (F.x0 + F.w - fp.x0 - fp.w) / F.w,
+      b: (fp.y0 - F.y0) / F.h,
+      t: (F.y0 + F.h - fp.y0 - fp.h) / F.h,
+    };
   }
   fp.custom = true;
   requestFpRelayout();
 });
-['pointerup', 'pointercancel'].forEach((ev) => els.fpEditor.addEventListener(ev, () => { fpDrag = null; }));
+['pointerup', 'pointercancel'].forEach((ev) => els.fpEditor.addEventListener(ev, () => {
+  if (fpDrag) updateFpButtons();
+  fpDrag = null;
+}));
+
+/* ---- 底圖影像處理：先裁切、再旋轉（Plotly 無法裁切或旋轉版面圖片，以 canvas 轉出） ---- */
+const fpImgCache = { url: null, img: null };
+const fpProcCache = new Map();
+function fpImage(dataUrl) {
+  if (fpImgCache.url !== dataUrl) {
+    const img = new Image();
+    img.onload = () => { if (state.hasResult) renderPlot(); };
+    img.src = dataUrl;
+    fpImgCache.url = dataUrl;
+    fpImgCache.img = img;
+    fpProcCache.clear();
+  }
+  const img = fpImgCache.img;
+  return img.complete && img.naturalWidth ? img : null;
+}
+function processedFloorplan(dataUrl, crop, k) {
+  const noCrop = !crop || crop.l + crop.r + crop.t + crop.b < 1e-6;
+  if (noCrop && !k) return dataUrl;
+  const key = [k, crop.l, crop.r, crop.t, crop.b].map((v) => (+v).toFixed(5)).join('|');
+  if (fpProcCache.has(key)) return fpProcCache.get(key);
+  const img = fpImage(dataUrl);
+  if (!img) return dataUrl;   // 載入後 onload 會重繪
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const sx = Math.round(crop.l * W), sy = Math.round(crop.t * H);
+  const sw = Math.max(1, Math.round((1 - crop.l - crop.r) * W));
+  const sh = Math.max(1, Math.round((1 - crop.t - crop.b) * H));
+  const c = document.createElement('canvas');
+  c.width = k % 2 ? sh : sw;
+  c.height = k % 2 ? sw : sh;
+  const ctx = c.getContext('2d');
+  ctx.translate(c.width / 2, c.height / 2);
+  ctx.rotate(k * Math.PI / 2);          // 正值為順時針，與圖面旋轉方向一致
+  ctx.drawImage(img, sx, sy, sw, sh, -sw / 2, -sh / 2, sw, sh);
+  const url = c.toDataURL('image/png');
+  if (fpProcCache.size > 12) fpProcCache.clear();
+  fpProcCache.set(key, url);
+  return url;
+}
 
 /* ================= Banner & notes ================= */
 let bannerTimer = null;
@@ -1709,7 +1866,7 @@ async function compute() {
   try {
     const fd = fieldDims();
     const bounds = fd ? JSON.stringify([0, fd[0], 0, fd[1]]) : '';
-    const out = pyInterpolate(JSON.stringify(pts), state.method, state.gridN, state.power, bounds);
+    const out = pyInterpolate(JSON.stringify(pts), state.method, state.gridCell, state.power, bounds);
     const res = JSON.parse(out);
     if (res.error) {
       showBanner(res.error, 'error');
@@ -1725,7 +1882,9 @@ async function compute() {
     renderPlot();
     updateNotes();
     updateFpButtons();
-    els.gridInfo.textContent = `${res.grid_z[0].length} × ${res.grid_z.length} grid · ${res.n_points} pts · ${res.method_used}`;
+    els.gridInfo.textContent = `${res.gx.length} × ${res.gy.length} grid (${res.cell} m) · ${res.n_points} pts · ${res.method_used}`;
+    if (res.cell > state.gridCell + 1e-9) showBanner(t('grid_coarse').replace('{c}', res.cell), 'warn', 8000);
+    updateCrangeInfo();
     if (window.innerWidth < 768) els.sidebar.classList.remove('open');
   } catch (err) {
     console.error(err);
@@ -1761,34 +1920,120 @@ function transpose(z) {
   }
   return out;
 }
-// Plotly 無法旋轉版面圖片，底圖須自行以 canvas 轉出旋轉後之影像
-const fpRotCache = {};
-function rotatedFloorplan(dataUrl, k) {
-  if (!k) return dataUrl;
-  const key = k + '|' + dataUrl.length + '|' + dataUrl.slice(-32);
-  if (fpRotCache[key]) return fpRotCache[key];
-  const img = new Image();
-  img.src = dataUrl;
-  if (!img.complete || !img.naturalWidth) { setTimeout(() => renderPlot(), 120); return dataUrl; }
-  const c = document.createElement('canvas');
-  const w = img.naturalWidth, h = img.naturalHeight;
-  c.width = k % 2 ? h : w;
-  c.height = k % 2 ? w : h;
-  const ctx = c.getContext('2d');
-  ctx.translate(c.width / 2, c.height / 2);
-  ctx.rotate(k * Math.PI / 2);          // 正值為順時針，與圖面旋轉方向一致
-  ctx.drawImage(img, -w / 2, -h / 2);
-  const url = c.toDataURL('image/png');
-  fpRotCache[key] = url;
-  return url;
+/* ---- 濃度梯度範圍與分級 ---- */
+function niceStep(raw) {
+  if (!(raw > 0) || !isFinite(raw)) return 1;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const f = raw / p;
+  const n = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return n * p;
+}
+function roundSig(v) { return parseFloat(v.toPrecision(10)); }
+function autoColorRange(zmin, zmax, n) {
+  if (!(zmax > zmin)) { const d = Math.abs(zmin) * 0.1 || 1; zmin -= d; zmax += d; }
+  let step = niceStep((zmax - zmin) / n);
+  let lo = Math.floor(zmin / step) * step;
+  // 確保 n 個分區即可涵蓋最大值
+  for (let i = 0; i < 6 && lo + n * step < zmax - 1e-12; i++) {
+    step = niceStep(step * 1.05);
+    lo = Math.floor(zmin / step) * step;
+  }
+  return { min: roundSig(lo), max: roundSig(lo + n * step) };
+}
+function colorRange() {
+  const res = state.lastResult;
+  const cr = state.crange;
+  const n = Math.min(40, Math.max(2, Math.round(cr.levels) || 10));
+  const auto = res ? autoColorRange(res.z_range[0], res.z_range[1], n) : { min: 0, max: 1 };
+  let min = cr.min != null ? cr.min : auto.min;
+  let max = cr.max != null ? cr.max : auto.max;
+  let bad = false;
+  if (!(max > min)) { bad = true; min = auto.min; max = auto.max; }
+  // 只指定一端時，另一端以自動值為準；分區間距 = (上限 − 下限) / 分區數
+  return { min, max, n, size: (max - min) / n, auto, bad };
+}
+function fmtTick(v, size) {
+  const d = Math.max(0, Math.min(6, -Math.floor(Math.log10(Math.abs(size) || 1) + 1e-9) + 1));
+  return String(parseFloat(v.toFixed(d)));
+}
+function updateCrangeInfo() {
+  const r = colorRange();
+  els.cMin.placeholder = state.lastResult ? fmtTick(r.auto.min, r.size) : t('ph_auto');
+  els.cMax.placeholder = state.lastResult ? fmtTick(r.auto.max, r.size) : t('ph_auto');
+  els.cRangeInfo.textContent = r.bad ? t('c_range_bad')
+    : t('c_range_info').replace('{s}', fmtTick(r.size, r.size / 10));
+  els.cRangeInfo.classList.toggle('text-red-600', r.bad);
+}
+
+/* ---- 圖面幾何：座標軸範圍固定為場域，縮放只改變整張圖的顯示大小 ----
+   版面寬高依「場域長寬比 × 縮放倍率」計算，使繪圖區恰好等於場域，
+   色階緊貼於右側；PNG 輸出沿用同一版面，只提高解析度。 */
+const ZOOM_MIN = 0.25, ZOOM_MAX = 8;
+function figureGeom(forExport = false) {
+  const res = state.lastResult;
+  const R = rotFlags();
+  const sx0 = res.x_range[1] - res.x_range[0], sy0 = res.y_range[1] - res.y_range[0];
+  const sx = R.swap ? sy0 : sx0, sy = R.swap ? sx0 : sy0;
+  const cr = colorRange();
+  const unit = (els.unitInput.value || '').trim();
+  const ticks = [];
+  for (let i = 0; i <= cr.n; i++) ticks.push(fmtTick(cr.min + i * cr.size, cr.size));
+  // 輸出時字級與線寬放大 1.5 倍，使 3000 px 大圖上的文字比例與畫面預覽相近
+  const FS = forExport ? 1.5 : 1;
+  const labW = Math.max(...ticks.map((s) => s.length)) * 6.6 * FS;
+  const CB = { thick: 18 * FS, pad: 10 * FS, font: 11 * FS };
+  const r = Math.ceil(Math.max(CB.pad + CB.thick + 6 * FS + labW, CB.pad + unit.length * 7.5 * FS) + 16 * FS);
+  const hasTitle = !!(els.titleInput.value || '').trim();
+  const m = { l: 60 * FS, r, t: (hasTitle ? 52 : 26) * FS, b: 50 * FS };
+  let pw, ph;
+  if (forExport) {
+    // 輸出：與畫面縮放無關，依場域長寬比讓繪圖區長邊固定為 1200 px（再以倍率提高解析度）
+    const L = 1200;
+    if (sx >= sy) { pw = L; ph = L * sy / sx; } else { ph = L; pw = L * sx / sy; }
+  } else {
+    const sc = els.plotScroll;
+    const availW = Math.max(120, sc.clientWidth - 12) - m.l - m.r;
+    const availH = Math.max(120, sc.clientHeight - 12) - m.t - m.b;
+    const pw0 = Math.max(40, Math.min(availW, availH * sx / sy));
+    pw = pw0 * state.zoom; ph = pw * sy / sx;
+  }
+  // 色階長度：一般與繪圖區同高；狹長（Y 很長）時不超過寬度的 1.6 倍（至少 480 px）並置中，
+  // 繪圖區過扁時至少 240 px，上下邊界隨之加大。
+  const minLen = forExport ? 360 : 240;
+  const cbLen = Math.max(Math.min(ph, Math.max(pw * 1.6, forExport ? 640 : 480)), Math.min(minLen, Math.max(ph, minLen)));
+  const extra = Math.max(0, cbLen - ph);
+  m.t += extra / 2; m.b += extra / 2;
+  return {
+    sx, sy, pw, ph, m, cbLen, CB, ticks, cr, FS,
+    W: Math.round(pw + m.l + m.r), H: Math.round(ph + m.t + m.b),
+  };
 }
 
 function renderPlot() {
+  if (!state.lastResult) return;
+  const G = figureGeom();
+  const fig = buildFigure(G);
+  els.plotStage.style.width = G.W + 'px';
+  els.plotStage.style.height = G.H + 'px';
+  els.zoomCtl.classList.remove('hidden');
+  els.zoomCtl.classList.add('flex');
+  els.zoomVal.textContent = Math.round(state.zoom * 100) + '%';
+  return Plotly.react(els.plot, fig.data, fig.layout, {
+    responsive: false, displayModeBar: false, displaylogo: false, scrollZoom: false, doubleClick: false,
+  }).then(() => {
+    if (!plotListenersAttached && els.plot.on) {
+      plotListenersAttached = true;
+      els.plot.on('plotly_afterplot', () => syncFpEditor());
+    }
+    syncFpEditor();
+  });
+}
+
+function buildFigure(G, forExport = false) {
   const res = state.lastResult;
-  if (!res) return;
   const R = rotFlags();
-  let gx = res.grid_x[0];
-  let gy = res.grid_y.map((row) => row[0]);
+  let gx = res.gx;
+  let gy = res.gy;
   let gz = res.grid_z;
   if (R.swap) { const t0 = gx; gx = gy; gy = t0; gz = transpose(gz); }
   const cs = COLORSCALES[state.colorscale] || COLORSCALES.Jet;
@@ -1797,9 +2042,17 @@ function renderPlot() {
   const unit = (els.unitInput.value || '').replace(/[<>]/g, '').trim();
   const chart = state.chart;
   const mainOpacity = chart.contourOpacity / 100;
+  const cr = G.cr;
+  const every = Math.max(1, Math.ceil(cr.n / Math.max(4, Math.floor(G.cbLen / (22 * G.FS)))));
+  const tickvals = [], ticktext = [];
+  for (let i = 0; i <= cr.n; i += every) { tickvals.push(cr.min + i * cr.size); ticktext.push(G.ticks[i]); }
   const colorbar = {
-    title: { text: unit, side: 'top', font: { size: 11, color: '#475569' } },
-    thickness: 14, len: 0.92, outlinewidth: 0, tickfont: { size: 10, color: '#475569' },
+    title: { text: unit, side: 'top', font: { size: 12 * G.FS, color: '#475569' } },
+    x: 1, xanchor: 'left', xpad: G.CB.pad, y: 0.5, yanchor: 'middle',
+    len: G.cbLen, lenmode: 'pixels', ypad: 0,
+    thickness: G.CB.thick, outlinewidth: 0,
+    tickmode: 'array', tickvals, ticktext,
+    tickfont: { size: G.CB.font, color: '#475569' },
   };
   const hover = R.swap
     ? `X: %{y:.2f} m<br>Y: %{x:.2f} m<br>%{z:.4g} ${unit}<extra></extra>`
@@ -1809,10 +2062,12 @@ function renderPlot() {
   traces.push({
     type: 'contour', x: gx, y: gy, z: gz,
     colorscale: cs.scale, reversescale: !!cs.reverse, opacity: mainOpacity,
+    autocontour: false, zauto: false, zmin: cr.min, zmax: cr.max,
     contours: {
       coloring: 'fill', showlines: true, showlabels: false,
+      start: cr.min, end: cr.max, size: cr.size,
     },
-    line: { color: 'rgba(15,23,42,0.35)', width: 0.7, smoothing: 0 },
+    line: { color: 'rgba(15,23,42,0.35)', width: 0.7 * G.FS, smoothing: 0 },
     colorbar, hovertemplate: hover,
   });
 
@@ -1826,7 +2081,7 @@ function renderPlot() {
       // 使超標區之顏色偏離色標，導致濃度判讀錯誤。
       contours: { type: 'constraint', operation: '<', value: oel, showlines: true },
       fillcolor: 'rgba(0,0,0,0)',
-      line: { color: '#b91c1c', width: 3 },
+      line: { color: '#b91c1c', width: 3 * G.FS },
     });
   }
 
@@ -1836,118 +2091,153 @@ function renderPlot() {
     x: vp.map((p) => (R.swap ? p.y : p.x)), y: vp.map((p) => (R.swap ? p.x : p.y)),
     text: vp.map((p) => formatLabel(p.c)),
     textposition: 'top center',
-    textfont: { size: chart.fontSize, color: chart.fontColor },
-    marker: { color: '#0f172a', size: chart.markerSize, line: { color: '#ffffff', width: 1.5 } },
+    textfont: { size: chart.fontSize * G.FS, color: chart.fontColor },
+    marker: { color: '#0f172a', size: chart.markerSize * G.FS, line: { color: '#ffffff', width: 1.5 * G.FS } },
     opacity: mainOpacity, // point markers + concentration labels fade with the contour layer
     hovertemplate: (R.swap ? `(%{y}, %{x})` : `(%{x}, %{y})`) + `<br>%{text} ${unit}<extra></extra>`,
     cliponaxis: false,
   });
 
-  // 旋轉後之顯示範圍：奇數次旋轉時兩軸對調，方向則以反轉範圍表現
+  // 座標軸範圍 = 場域（無外擴）；奇數次旋轉時兩軸對調，方向以反轉範圍表現
   const oxr = [res.x_range[0], res.x_range[1]];
   const oyr = [res.y_range[0], res.y_range[1]];
-  const xr = R.swap ? oyr.slice() : oxr.slice();
-  const yr = R.swap ? oxr.slice() : oyr.slice();
-  const padX = (xr[1] - xr[0]) * 0.02, padY = (yr[1] - yr[0]) * 0.02;
-  let fx = [xr[0] - padX, xr[1] + padX];
-  let fy = [yr[0] - padY, yr[1] + padY];
+  const fx = R.swap ? oyr.slice() : oxr.slice();
+  const fy = R.swap ? oxr.slice() : oyr.slice();
   if (R.xRev) fx.reverse();
   if (R.yRev) fy.reverse();
-  fullRange = { x: fx, y: fy };
 
-  // 底圖：資料座標之矩形隨軸對調，影像本身另以 canvas 旋轉
+  // 底圖：裁切模式中顯示完整原圖（以便選取範圍），其餘時候顯示裁切後影像
+  const showFull = !forExport && fpCropOn && fpHasCrop();
+  const baseRect = showFull ? fpFullRect() : { x0: fp.x0, y0: fp.y0, w: fp.w, h: fp.h };
   const fpRect = R.swap
-    ? { x0: fp.y0, y0: fp.x0, w: fp.h, h: fp.w }
-    : { x0: fp.x0, y0: fp.y0, w: fp.w, h: fp.h };
+    ? { x0: baseRect.y0, y0: baseRect.x0, w: baseRect.h, h: baseRect.w }
+    : baseRect;
+  const fpSrc = hasFp ? processedFloorplan(fp.dataUrl, showFull ? { l: 0, r: 0, t: 0, b: 0 } : fp.crop, R.k) : null;
 
+  const axisCommon = {
+    zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 11 * G.FS },
+    fixedrange: true, showline: true, linecolor: '#94a3b8', mirror: true, ticks: 'outside', ticklen: 4 * G.FS,
+  };
   const layout = {
-    title: { text: els.titleInput.value || '', font: { size: 16, color: '#0f172a' }, x: 0.5, xanchor: 'center' },
+    width: G.W, height: G.H, autosize: false,
+    title: { text: els.titleInput.value || '', font: { size: 16 * G.FS, color: '#0f172a' }, x: 0.5, xanchor: 'center',
+             xref: 'paper', y: 1, yref: 'paper', yanchor: 'bottom', pad: { b: 14 * G.FS } },
     xaxis: {
-      title: { text: R.swap ? 'Y (m)' : 'X (m)', font: { size: 12, color: '#475569' } },
-      range: fullRange.x.slice(), constrain: 'domain',
-      zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
+      ...axisCommon,
+      title: { text: R.swap ? 'Y (m)' : 'X (m)', font: { size: 12 * G.FS, color: '#475569' } },
+      range: fx, constrain: 'domain',
     },
     yaxis: {
-      title: { text: R.swap ? 'X (m)' : 'Y (m)', font: { size: 12, color: '#475569' } },
-      range: fullRange.y.slice(),
-      scaleanchor: 'x', scaleratio: 1, constrain: 'domain',
-      zeroline: false, gridcolor: '#e2e8f0', tickfont: { size: 10 },
+      ...axisCommon,
+      title: { text: R.swap ? 'X (m)' : 'Y (m)', font: { size: 12 * G.FS, color: '#475569' } },
+      range: fy, scaleanchor: 'x', scaleratio: 1, constrain: 'domain',
     },
-    margin: { l: 56, r: 10, t: 46, b: 46 },
-    paper_bgcolor: 'rgba(0,0,0,0)',
+    margin: { ...G.m, pad: 0 },
+    paper_bgcolor: '#ffffff',
     plot_bgcolor: '#ffffff',
     showlegend: false,
     hovermode: 'closest',
-    dragmode: 'pan',
-    uirevision: res.x_range.join(',') + '|' + res.y_range.join(',') + '|' + R.k,
+    dragmode: false,
     images: hasFp ? [{
-      source: rotatedFloorplan(fp.dataUrl, R.k), xref: 'x', yref: 'y',
-      x: fpRect.x0, y: fpRect.y0 + fpRect.h, sizex: fpRect.w, sizey: fpRect.h,
+      source: fpSrc, xref: 'x', yref: 'y',
+      // 影像以畫面左上角定位；座標軸反轉（旋轉）時左上角對應之資料座標亦需對調
+      x: R.xRev ? fpRect.x0 + fpRect.w : fpRect.x0,
+      y: R.yRev ? fpRect.y0 : fpRect.y0 + fpRect.h,
+      sizex: fpRect.w, sizey: fpRect.h,
       sizing: 'stretch', opacity: fp.opacity / 100, layer: 'below',
     }] : [],
   };
-  Plotly.react(els.plot, traces, layout, {
-    responsive: true, displaylogo: false, scrollZoom: false, doubleClick: false,
-    modeBarButtonsToRemove: ['select2d', 'lasso2d', 'autoScale2d'],
-  }).then(() => {
-    if (!plotListenersAttached && els.plot.on) {
-      plotListenersAttached = true;
-      els.plot.on('plotly_relayout', () => syncFpEditor());
-      els.plot.on('plotly_afterplot', () => syncFpEditor());
-    }
-    syncFpEditor();
+  return { data: traces, layout };
+}
+
+/* ---- 預覽縮放：只改變圖面顯示大小（座標軸範圍不變），以游標為中心 ---- */
+let zoomRaf = 0, zoomPending = null;
+function setZoom(z, anchorClientX, anchorClientY) {
+  if (!state.hasResult) return;
+  z = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  if (Math.abs(z - state.zoom) < 1e-4) return;
+  const sc = els.plotScroll, st = els.plotStage;
+  const sr = sc.getBoundingClientRect();
+  const ax = anchorClientX != null ? anchorClientX - sr.left : sc.clientWidth / 2;
+  const ay = anchorClientY != null ? anchorClientY - sr.top : sc.clientHeight / 2;
+  // 錨點於圖面上的相對位置（0–1）
+  const fxr = (sc.scrollLeft + ax - st.offsetLeft) / st.offsetWidth;
+  const fyr = (sc.scrollTop + ay - st.offsetTop) / st.offsetHeight;
+  state.zoom = z;
+  zoomPending = { fxr, fyr, ax, ay };
+  if (zoomRaf) return;
+  zoomRaf = requestAnimationFrame(() => {
+    zoomRaf = 0;
+    const p = zoomPending;
+    renderPlot();
+    sc.scrollLeft = st.offsetLeft + p.fxr * st.offsetWidth - p.ax;
+    sc.scrollTop = st.offsetTop + p.fyr * st.offsetHeight - p.ay;
   });
 }
-/* gentle, cursor-centered wheel zoom (Plotly's default scroll step is too coarse) */
 function smoothWheelZoom(e) {
   if (!state.hasResult) return;
-  const A = plotAxes();
-  if (!A) return;
-  const p = pxToData(e.clientX, e.clientY);
-  if (!p) return;
   e.preventDefault();
-  let f = Math.exp(e.deltaY * 0.0012);
-  f = Math.min(1.3, Math.max(0.77, f)); // clamp per-event so trackpads/mice feel continuous
-  const [x0, x1] = A.xa.range, [y0, y1] = A.ya.range;
-  Plotly.relayout(els.plot, {
-    'xaxis.range': [p[0] - (p[0] - x0) * f, p[0] + (x1 - p[0]) * f],
-    'yaxis.range': [p[1] - (p[1] - y0) * f, p[1] + (y1 - p[1]) * f],
-  });
+  let f = Math.exp(-e.deltaY * 0.0015);
+  f = Math.min(1.25, Math.max(0.8, f));
+  setZoom(state.zoom * f, e.clientX, e.clientY);
 }
+// 放大後以滑鼠拖曳平移檢視
+(function dragPan() {
+  let pan = null;
+  els.plotScroll.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || e.target.closest('#fp-editor')) return;
+    const sc = els.plotScroll;
+    if (sc.scrollWidth <= sc.clientWidth && sc.scrollHeight <= sc.clientHeight) return;
+    pan = { x: e.clientX, y: e.clientY, sl: sc.scrollLeft, st: sc.scrollTop, id: e.pointerId, moved: false };
+  });
+  window.addEventListener('pointermove', (e) => {
+    if (!pan) return;
+    const dx = e.clientX - pan.x, dy = e.clientY - pan.y;
+    if (!pan.moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+    pan.moved = true;
+    els.plotScroll.classList.add('panning');
+    els.plotScroll.scrollLeft = pan.sl - dx;
+    els.plotScroll.scrollTop = pan.st - dy;
+  });
+  window.addEventListener('pointerup', () => { pan = null; els.plotScroll.classList.remove('panning'); });
+})();
 
 /* ================= Export ================= */
 function slugTitle() {
   const s = (els.titleInput.value || 'contour').replace(/[\\/:*?"<>|]/g, '').trim();
   return s || 'contour';
 }
-// PNG 直接沿用畫面上預覽之版面：以繪圖容器的實際像素尺寸出圖，
-// 僅提高輸出倍率。若另行指定寬高，Plotly 會依新畫布重新配置字級、
-// 色階與邊界，輸出結果便與預覽不一致。
-function exportScale() {
-  const r = els.plot.getBoundingClientRect();
-  const long = Math.max(r.width, r.height) || 800;
-  return Math.min(4, Math.max(2, Math.round(2400 / long)));   // 長邊約 2400 px 以上
-}
-function downloadPng() {
+// PNG 輸出不受畫面縮放與視窗大小影響：依場域（含旋轉）長寬比重新配置版面，
+// 繪圖區長邊 3000 px，色階緊貼右側並依圖面大小調整長度。
+async function downloadPng() {
   if (!state.hasResult) return;
-  const r = els.plot.getBoundingClientRect();
-  Plotly.downloadImage(els.plot, {
-    format: 'png',
-    width: Math.round(r.width),
-    height: Math.round(r.height),
-    scale: exportScale(),
-    filename: slugTitle(),
-  });
+  const G = figureGeom(true);
+  const fig = buildFigure(G, true);
+  fig.layout.hovermode = false;
+  try {
+    const url = await Plotly.toImage({ data: fig.data, layout: fig.layout }, {
+      format: 'png', width: G.W, height: G.H, scale: 2.5,   // 繪圖區長邊 1200 px × 2.5 = 3000 px
+    });
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = slugTitle() + '.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  } catch (err) {
+    console.error(err);
+    showBanner('PNG 輸出失敗 / PNG export failed: ' + ((err && err.message) || err), 'error');
+  }
 }
 function downloadGridCsv() {
   const res = state.lastResult;
   if (!res) return;
   const unit = (els.unitInput.value || 'value').replace(/[",\s]/g, '') || 'value';
   const lines = [`x_m,y_m,c_${unit}`];
-  const { grid_x, grid_y, grid_z } = res;
+  const { gx, gy, grid_z } = res;
   for (let i = 0; i < grid_z.length; i++) {
     for (let j = 0; j < grid_z[i].length; j++) {
-      lines.push(`${grid_x[i][j]},${grid_y[i][j]},${grid_z[i][j] ?? ''}`);
+      lines.push(`${gx[j]},${gy[i]},${grid_z[i][j] ?? ''}`);
     }
   }
   const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8' });
@@ -1995,7 +2285,7 @@ els.discMore.addEventListener('click', () => openModal(els.modalAbout));
 (function widthResize() {
   const handle = els.resizeHandle, sb = els.sidebar;
   let drag = null, raf = 0;
-  const reflow = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (state.hasResult) Plotly.Plots.resize(els.plot); }); };
+  const reflow = () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; if (state.hasResult) renderPlot(); }); };
   handle.addEventListener('pointerdown', (e) => {
     if (window.innerWidth < 768) return;
     drag = { sx: e.clientX, ow: sb.getBoundingClientRect().width };
@@ -2015,7 +2305,7 @@ els.discMore.addEventListener('click', () => openModal(els.modalAbout));
     drag = null;
     handle.classList.remove('active');
     document.body.style.userSelect = '';
-    if (state.hasResult) Plotly.Plots.resize(els.plot);
+    if (state.hasResult) renderPlot();
   }));
 })();
 
@@ -2089,7 +2379,7 @@ async function initPyodide() {
     pyInterpolate = pyodideInstance.globals.get('interpolate');
     // warm-up call so the first real computation is snappy
     try {
-      pyInterpolate(JSON.stringify(SAMPLE_DATA.slice(0, 6)), 'kriging', 12, 2, '');
+      pyInterpolate(JSON.stringify(SAMPLE_DATA.slice(0, 6)), 'kriging', 1, 2, '');
     } catch (e) { console.warn('warmup failed', e); }
     state.pyReady = true;
     finishLoading();
@@ -2143,24 +2433,29 @@ els.powerSlider.addEventListener('input', () => {
   scheduleRecompute(450);
 });
 function updateGridReadout() {
-  const n = state.gridN;
   const fd = fieldDims();
-  let nx = n, ny = n, cell = null;
-  if (fd) {
-    const [W, H] = fd;
-    if (W >= H) { nx = n; ny = Math.max(10, Math.round(n * H / W)); }
-    else { ny = n; nx = Math.max(10, Math.round(n * W / H)); }
-    cell = Math.max(W / (nx - 1), H / (ny - 1));
-  }
-  els.gridVal.textContent = nx;
-  els.gridVal2.textContent = ny;
-  els.gridCell.textContent = cell ? `≈ ${cell < 1 ? cell.toFixed(2) : cell.toFixed(1)} m/格` : '';
+  const c = state.gridCell;
+  els.gridCell.textContent = fd
+    ? `${Math.round(fd[0] / c) + 1} × ${Math.round(fd[1] / c) + 1}`
+    : '';
 }
-els.gridSlider.addEventListener('input', () => {
-  state.gridN = parseInt(els.gridSlider.value, 10);
-  updateGridReadout();
-  scheduleRecompute(450);
+function readCrange() {
+  const v = (el) => { const x = parseFloat(el.value); return isFinite(x) ? x : null; };
+  state.crange.min = v(els.cMin);
+  state.crange.max = v(els.cMax);
+  const n = parseInt(els.cLevels.value, 10);
+  state.crange.levels = isFinite(n) ? Math.min(40, Math.max(2, n)) : 10;
+  updateCrangeInfo();
+  if (state.hasResult) renderPlot();
+}
+[els.cMin, els.cMax, els.cLevels].forEach((el) => el.addEventListener('input', readCrange));
+els.btnCAuto.addEventListener('click', () => {
+  els.cMin.value = ''; els.cMax.value = ''; els.cLevels.value = 10;
+  readCrange();
 });
+els.btnZoomIn.addEventListener('click', () => setZoom(state.zoom * 1.25));
+els.btnZoomOut.addEventListener('click', () => setZoom(state.zoom / 1.25));
+els.btnZoomFit.addEventListener('click', () => { state.zoom = 1; if (state.hasResult) renderPlot(); });
 els.unitInput.addEventListener('input', () => { if (state.hasResult) renderPlot(); });
 els.titleInput.addEventListener('input', () => { if (state.hasResult) renderPlot(); });
 els.oelInput.addEventListener('input', () => {
@@ -2213,7 +2508,15 @@ els.fpFile.addEventListener('change', () => {
   if (els.fpFile.files[0]) handleFpFile(els.fpFile.files[0]);
 });
 els.btnFpRemove.addEventListener('click', removeFloorplan);
-els.btnFpAdjust.addEventListener('click', () => setFpEditor(!fpEditorOn));
+els.btnFpAdjust.addEventListener('click', () => setFpEditor(!(fpEditorOn && !fpCropOn), 'adjust'));
+els.btnFpCrop.addEventListener('click', () => setFpEditor(!fpCropOn, 'crop'));
+els.btnFpUncrop.addEventListener('click', () => {
+  // 取消裁切：還原完整原圖，比例尺不變
+  const F = fpFullRect();
+  Object.assign(state.floorplan, F, { crop: { l: 0, r: 0, t: 0, b: 0 } });
+  updateFpButtons();
+  if (state.hasResult) renderPlot();
+});
 els.btnFpReset.addEventListener('click', () => {
   fpResetRect();
   if (state.hasResult) renderPlot();
@@ -2247,20 +2550,17 @@ els.btnContinue.addEventListener('click', () => {
   setTimeout(() => els.loadingOverlay.remove(), 600);
   showBanner(`${I18N.zh.load_err} / ${I18N.en.load_err}`, 'error');
 });
-els.plot.addEventListener('wheel', smoothWheelZoom, { passive: false });
-// Plotly's own double-click reset is disabled (doubleClick:false) so it doesn't
-// autorange to the data bbox — reset to the full field extent ourselves instead.
-els.plot.addEventListener('dblclick', () => {
-  if (state.hasResult && fullRange) {
-    Plotly.relayout(els.plot, { 'xaxis.range': fullRange.x.slice(), 'yaxis.range': fullRange.y.slice() });
-  }
+els.plotScroll.addEventListener('wheel', smoothWheelZoom, { passive: false });
+// 雙擊恢復「符合視窗」大小
+els.plotScroll.addEventListener('dblclick', (e) => {
+  if (e.target.closest('#fp-editor')) return;
+  if (state.hasResult) { state.zoom = 1; renderPlot(); }
 });
 let resizeTimer = null;
 window.addEventListener('resize', () => {
   clearTimeout(resizeTimer);
   resizeTimer = setTimeout(() => {
-    if (state.hasResult) Plotly.Plots.resize(els.plot);
-    syncFpEditor();
+    if (state.hasResult) renderPlot();
   }, 200);
 });
 

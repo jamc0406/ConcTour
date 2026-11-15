@@ -52,17 +52,17 @@
         <li><b>輸入測點資料</b>：在表格直接輸入座標與濃度、點「上傳 CSV」匯入（自動辨識 <code>x</code>、<code>y</code>、<code>c</code>／<code>concentration</code>／<code>濃度</code> 欄位），或點「載入範例資料」試用。</li>
         <li><b>資料品質檢核（QAQC）</b>：系統自動<b>排除</b> 0 值、負值與超出場域範圍之測點（淡黃底標示）。疑似異常高值（大於 Q3＋3×IQR）會以 <b>⚠</b> 標記並<b>預設納入</b>計算；您可<b>點擊該 ⚠ 圖示自行決定排除或重新納入</b>，圖面與統計會即時更新。</li>
         <li><b>檢視數理統計</b>：圖表下方的統計框顯示樣本數、最小／最大值、算術平均、中位數、標準差、幾何平均（GM）、幾何標準差（GSD）與超過 OEL 之測點數，均以通過 QAQC（含您的異常值決定）之測點計算。</li>
-        <li><b>參數設定</b>：插值方法固定為普通克利金（見下節），使用者無須選擇；可調整網格解析度、濃度單位與 OEL 閾值。網格依場域長寬比配置、格點恆為正方形，滑桿數值為<b>長邊格數</b>，旁側顯示對應之公尺／格。</li>
-        <li><b>圖表設定</b>：色階（預設 Jet，點選色階圖示更換）、<b>分佈圖不透明度</b>、是否於圖上顯示各測點濃度值、標註字體顏色與大小、濃度點大小、PNG 匯出長邊像素。圖表標題位於側欄最上方。</li>
-        <li><b>平面圖（選用）</b>：上傳 PNG／JPG 平面圖，預設自動縮放至場域大小；點「調整位置與大小」後，可直接在圖面上拖移藍框、拉動四角縮放，再點一次完成。若疊圖看不清楚，於「圖表設定」<b>調低分佈圖不透明度</b>即可讓底圖透出。</li>
+        <li><b>參數設定</b>：插值方法固定為普通克利金（見下節），使用者無須選擇；可設定濃度單位與 OEL 閾值。網格解析度固定為 <b>0.1 m × 0.1 m</b>（正方形格點），無須調整；場域極大時才會自動放寬並提示。</li>
+        <li><b>圖表設定</b>：色階（預設 Jet，點選色階圖示更換）、<b>濃度梯度上下限與分區數</b>（空白為自動）、<b>分佈圖不透明度</b>、是否於圖上顯示各測點濃度值、標註字體顏色與大小、濃度點大小。圖表標題位於側欄最上方。</li>
+        <li><b>平面圖（選用）</b>：上傳 PNG／JPG 平面圖，預設自動縮放至場域大小；點「調整位置與大小」後，可直接在圖面上拖移藍框、拉動四角或邊緣縮放，再點一次完成；點「裁切底圖」可拖曳橘框只保留需要的範圍（比例尺不變），「取消裁切」可還原。若疊圖看不清楚，於「圖表設定」<b>調低分佈圖不透明度</b>即可讓底圖透出。</li>
         <li><b>旋轉圖面</b>：圖下方之「旋轉 90°」可將圖面依序轉 90°／180°／270°／回正。旋轉僅改變呈現方向，座標軸刻度仍為原始 X／Y 值，下載之網格 CSV 亦維持原始座標；狹長場域轉為橫向後較適合放入報告版面。旋轉狀態下無法調整底圖位置，請先轉回 0°。</li>
-        <li><b>產生與匯出</b>：點「產生分佈圖」繪製結果，再以「下載 PNG」或「下載網格 CSV」匯出。PNG 畫布依場域長寬比自動裁切，狹長場域不會留下大片空白；以「PNG 長邊像素」調整輸出大小，側欄同步顯示實際畫布尺寸。</li>
+        <li><b>產生與匯出</b>：點「產生分佈圖」繪製結果，再以「下載 PNG」或「下載網格 CSV」匯出。PNG 不受畫面縮放與視窗大小影響，依場域（含旋轉）長寬比重新配置，分佈圖長邊約 3000 px，色階緊貼於圖右側；狹長場域亦可輸出清楚的大圖。</li>
       </ol>
 
       <h2>介面操作小技巧</h2>
       <ul>
         <li><b>調整輸入面板寬度</b>：將游標移到左側面板右緣，出現 ↔ 後拖曳即可拉寬或拉窄。</li>
-        <li><b>圖面縮放</b>：在圖上滾動滑鼠滾輪即可平順縮放（以游標位置為中心）；按住拖曳可平移；<b>雙擊</b>圖面可回到完整場域範圍。</li>
+        <li><b>圖面縮放</b>：座標軸範圍固定為場域尺寸；滾動滑鼠滾輪或右下角 −／+ 只改變整張圖的顯示大小（僅供預覽，不影響輸出）；放大後按住拖曳可平移；<b>雙擊</b>或「符合視窗」回到原大小。</li>
       </ul>
 
       <h2>插值方法</h2>
@@ -108,18 +108,18 @@
         <li><b>Enter measurement data</b>: type into the table, upload a CSV (columns <code>x</code>, <code>y</code>, <code>c</code>/<code>concentration</code>/<code>濃度</code> are auto-detected), upload the standard data table (Excel), or load the sample dataset.</li>
         <li><b>Data QA/QC</b>: zero values, negatives, and points outside the field are <b>excluded automatically</b> (pale-yellow rows). Suspected high outliers (above Q3 + 3×IQR) are flagged with <b>⚠</b> and <b>included by default</b>; <b>click the ⚠ icon to exclude or re-include</b> each one — the map and statistics update instantly.</li>
         <li><b>Review statistics</b>: the box below the plot shows n, min/max, mean, median, SD, geometric mean (GM), geometric SD (GSD), and the count above the OEL, all computed on the QA/QC-passed points (reflecting your outlier choices).</li>
-        <li><b>Choose a method and parameters</b>: five interpolation methods (see table), grid resolution, unit, and an optional OEL threshold.</li>
+        <li><b>Choose a method and parameters</b>: five interpolation methods (see table), unit, and an optional OEL threshold. The grid is fixed at 0.1 m × 0.1 m.</li>
         <li><b>Chart settings</b>: title, color scale (click a swatch), <b>contour opacity</b>, label font color/size, and marker size.</li>
-        <li><b>Chart settings</b>: colour scale (Jet by default), contour opacity, whether to print the concentration value at each point, label colour and size, marker size, and PNG export size. The map title sits at the top of the sidebar.</li>
-        <li><b>Floor plan (optional)</b>: upload a PNG/JPG plan — scaled to the field size by default. Click "Adjust position &amp; size" to drag the blue box and pull its corners on the plot; click again to finish. If the overlay is unclear, <b>lower the contour opacity</b> under "Chart Settings".</li>
+        <li><b>Chart settings</b>: colour scale (Jet by default), concentration range (min / max) and number of classes, contour opacity, whether to print the concentration value at each point, label colour and size, and marker size. The map title sits at the top of the sidebar.</li>
+        <li><b>Floor plan (optional)</b>: upload a PNG/JPG plan — scaled to the field size by default. Click "Adjust position &amp; size" to drag the blue box and pull its corners or edges on the plot; click again to finish. "Crop floor plan" keeps only the part you need (the scale is unchanged); "Remove crop" restores it. If the overlay is unclear, <b>lower the contour opacity</b> under "Chart Settings".</li>
         <li><b>Rotate</b>: the "Rotate 90°" button below the plot steps through 90°/180°/270°/back to 0°. Rotation only changes the display orientation — axis ticks keep the original X/Y values and the exported grid CSV stays in original coordinates. Floor-plan positioning is disabled while rotated; return to 0° first.</li>
-        <li><b>Generate &amp; export</b>: click "Generate Map", then download the PNG image or the interpolated grid CSV. The PNG canvas is sized to the field aspect ratio, so elongated fields no longer export with large empty margins; set the output size with "PNG long edge (px)".</li>
+        <li><b>Generate &amp; export</b>: click "Generate Map", then download the PNG image or the interpolated grid CSV. The PNG ignores the on-screen zoom and window size: it is laid out from the field aspect ratio (including rotation) with the map's long edge at about 3000 px and the colour bar right beside it.</li>
       </ol>
 
       <h2>Interface tips</h2>
       <ul>
         <li><b>Resize the input panel</b>: hover the right edge of the left panel and drag to make it wider or narrower.</li>
-        <li><b>Zoom the plot</b>: scroll the mouse wheel over the plot for smooth, cursor-centered zoom; drag to pan; <b>double-click</b> to return to the full field extent.</li>
+        <li><b>Zoom the plot</b>: the axes always match the field size. The mouse wheel or the −/+ buttons only change how large the whole map is drawn on screen (preview only); drag to pan when zoomed in; <b>double-click</b> or "Fit" to return.</li>
       </ul>
 
       <h2>Interpolation method</h2>
